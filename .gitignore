@@ -127,3 +127,15 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+.mp4
+.jpg
+.avi
+videos/NYCRIOTMAYHEM4NYPDCARSBURNEXPLODEProtestorsBlockFDNYCopReportedTrappedInside.mp4
+videos/RawVideoBuildingsEngulfedInFireInNewark.mp4
+videos/RawVideoFireBurnsVacantStripMallInSanJoseWillowGlen.mp4
+.gitignore
+videos/RawVideoBrushFireThreatensHomes.mp4
+videos/SANJOSEFIRERawvideoofstructuresburninginSanJosehillsbrushfire.mp4
+videos/SanJosefiresArsonsuspectedinfiresburninginSantaTeresafoothills.mp4
+videos/SANJOSEWILDFIRERawvideoofbrushfireburninginSanJosehills.mp4
