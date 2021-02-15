@@ -23,12 +23,12 @@ import configargparse
 #import logger
 
 parser = configargparse.ArgParser(description='myTFClassify')
-parser.add_argument('--data_path', type=str, default='gs://cmpelkk_imagetest/*.tfrec',
+parser.add_argument('--data_path', type=str, default='/home/kaikai/.keras/datasets/flower_photos',
                     help='path to get data')
 parser.add_argument('--save_path', type=str, default='./logs',
                     help='path to save the model and logs')
 parser.add_argument('--data_type', default='folder', choices=['folder', 'TFrecord'],
-                    help='the type of data')
+                    help='the type of data') #gs://cmpelkk_imagetest/*.tfrec
 # network
 parser.add_argument('--model_name', default='depth', choices=['disparity', 'depth'],
                     help='the network')
@@ -248,7 +248,7 @@ def main():
         print("Tensorflow Version: ", tf.__version__)
         print("Keras Version: ", tf.keras.__version__)
         global AUTOTUNE
-        AUTOTUNE = tf.data.AUTOTUNE
+        
 
         if args.GPU:
             physical_devices = tf.config.list_physical_devices('GPU')
@@ -273,6 +273,7 @@ def main():
             # A TPU has 8 cores so this will be 128
             BATCH_SIZE = 16*strategy.num_replicas_in_sync
 
+        AUTOTUNE = tf.data.AUTOTUNE
         if args.data_type == 'TFrecord':
             filenames = tf.io.gfile.glob(args.data_path)
             num_tfrecordfiles = len(filenames)
