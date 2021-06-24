@@ -133,3 +133,6 @@ dmypy.json
 .avi
 .pth
 .zip
+
+logs/
+.pdf
