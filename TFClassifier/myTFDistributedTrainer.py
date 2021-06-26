@@ -124,63 +124,62 @@ def plot_history(history, metric, val_metric):
     fig.savefig('traininghistory.pdf')
 
 def main():
-    if args.arch == 'Tensorflow':
-        print("Tensorflow Version: ", tf.__version__)
-        print("Keras Version: ", tf.keras.__version__)
+    print("Tensorflow Version: ", tf.__version__)
+    print("Keras Version: ", tf.keras.__version__)
 
-        if args.GPU:
-            physical_devices = tf.config.list_physical_devices('GPU')
-            num_gpu = len(physical_devices)
-            print("Num GPUs:", num_gpu)
-            # Create a MirroredStrategy object. This will handle distribution, and provides a context manager (tf.distribute.MirroredStrategy.scope) to build your model inside.
-            strategy = tf.distribute.MirroredStrategy()  # for GPU or multi-GPU machines
-            print("Number of accelerators: ", strategy.num_replicas_in_sync)
-            BUFFER_SIZE = 10000
-            BATCH_SIZE_PER_REPLICA = args.batchsize #64
-            BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
+    if args.GPU:
+        physical_devices = tf.config.list_physical_devices('GPU')
+        num_gpu = len(physical_devices)
+        print("Num GPUs:", num_gpu)
+        # Create a MirroredStrategy object. This will handle distribution, and provides a context manager (tf.distribute.MirroredStrategy.scope) to build your model inside.
+        strategy = tf.distribute.MirroredStrategy()  # for GPU or multi-GPU machines
+        print("Number of accelerators: ", strategy.num_replicas_in_sync)
+        BUFFER_SIZE = 10000
+        BATCH_SIZE_PER_REPLICA = args.batchsize #64
+        BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
 
-        train_data, test_data, num_train_examples, num_test_examples = loadtfds(
-            args.tfds_dataname)
-        # Apply this function to the training and test data, shuffle the training data, and batch it for training.
-        # This dataset fills a buffer with buffer_size elements, then randomly samples elements from this buffer, replacing the selected elements with new elements. For perfect shuffling, a buffer size greater than or equal to the full size of the dataset is required.
-        # https://www.tensorflow.org/api_docs/python/tf/data/Dataset#shuffle
-        train_ds = train_data.map(scale).cache().shuffle(
-            BUFFER_SIZE).batch(BATCH_SIZE)
-        val_ds = test_data.map(scale).batch(BATCH_SIZE)
+    train_data, test_data, num_train_examples, num_test_examples = loadtfds(
+        args.tfds_dataname)
+    # Apply this function to the training and test data, shuffle the training data, and batch it for training.
+    # This dataset fills a buffer with buffer_size elements, then randomly samples elements from this buffer, replacing the selected elements with new elements. For perfect shuffling, a buffer size greater than or equal to the full size of the dataset is required.
+    # https://www.tensorflow.org/api_docs/python/tf/data/Dataset#shuffle
+    train_ds = train_data.map(scale).cache().shuffle(
+        BUFFER_SIZE).batch(BATCH_SIZE)
+    val_ds = test_data.map(scale).batch(BATCH_SIZE)
 
-        global model
-        metricname='accuracy'
-        numclasses=10
-        model = create_model(strategy,numclasses, metricname)
-        model.summary()
+    global model
+    metricname='accuracy'
+    numclasses=10
+    model = create_model(strategy,numclasses, metricname)
+    model.summary()
 
-        # Define the checkpoint directory to store the checkpoints
-        checkpoint_dir = args.save_path #'./training_checkpoints'
-        # Name of the checkpoint files
-        checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
+    # Define the checkpoint directory to store the checkpoints
+    checkpoint_dir = args.save_path #'./training_checkpoints'
+    # Name of the checkpoint files
+    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
 
-        callbacks = [
-            tf.keras.callbacks.TensorBoard(log_dir=args.save_path),
-            tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix,
-                                            save_weights_only=True),
-            tf.keras.callbacks.LearningRateScheduler(learningratefn),
-            PrintLR()
-        ]
+    callbacks = [
+        tf.keras.callbacks.TensorBoard(log_dir=args.save_path),
+        tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix,
+                                        save_weights_only=True),
+        tf.keras.callbacks.LearningRateScheduler(learningratefn),
+        PrintLR()
+    ]
 
-        steps_per_epoch = num_train_examples // BATCH_SIZE  # 2936 is the length of train data
-        print("steps_per_epoch:", steps_per_epoch)
-        start_time = time.time()
-        #train the model 
-        history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
-        # history = model.fit(train_ds, validation_data=val_ds,
-        #                     steps_per_epoch=steps_per_epoch, epochs=EPOCHS, callbacks=[lr_callback])
+    steps_per_epoch = num_train_examples // BATCH_SIZE  # 2936 is the length of train data
+    print("steps_per_epoch:", steps_per_epoch)
+    start_time = time.time()
+    #train the model 
+    history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
+    # history = model.fit(train_ds, validation_data=val_ds,
+    #                     steps_per_epoch=steps_per_epoch, epochs=EPOCHS, callbacks=[lr_callback])
 
-        valmetricname="val_"+metricname
-        final_accuracy = history.history[valmetricname][-5:]
-        print("FINAL ACCURACY MEAN-5: ", np.mean(final_accuracy))
-        print("TRAINING TIME: ", time.time() - start_time, " sec")
+    valmetricname="val_"+metricname
+    final_accuracy = history.history[valmetricname][-5:]
+    print("FINAL ACCURACY MEAN-5: ", np.mean(final_accuracy))
+    print("TRAINING TIME: ", time.time() - start_time, " sec")
 
-        plot_history(history, metricname, valmetricname)
+    plot_history(history, metricname, valmetricname)
 
 if __name__ == '__main__':
     main()
