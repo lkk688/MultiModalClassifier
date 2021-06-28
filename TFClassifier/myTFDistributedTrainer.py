@@ -12,7 +12,7 @@ import time
 import os
 print(tf.__version__)
 
-from Datasetutil.TFdatasetutil import loadtfds, loadkerasdataset
+from Datasetutil.TFdatasetutil import loadtfds, loadkerasdataset, loadimagefolderdataset
 
 model = None 
 # import logger
@@ -141,21 +141,13 @@ def main():
         BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
 
 
-    train_data, test_data, num_train_examples, num_test_examples =loadkerasdataset()
+    train_ds, test_data, num_train_examples, num_test_examples, class_names=loadimagefolderdataset('flower')
+    #train_data, test_data, num_train_examples, num_test_examples =loadkerasdataset('cifar10')
     #train_data, test_data, num_train_examples, num_test_examples = loadtfds(args.tfds_dataname)
     print(num_train_examples)
 
     # train_data, test_data, num_train_examples, num_test_examples = loadtfds(
     #     args.tfds_dataname)
-    # Apply this function to the training and test data, shuffle the training data, and batch it for training.
-    # This dataset fills a buffer with buffer_size elements, then randomly samples elements from this buffer, replacing the selected elements with new elements. For perfect shuffling, a buffer size greater than or equal to the full size of the dataset is required.
-    # https://www.tensorflow.org/api_docs/python/tf/data/Dataset#shuffle
-    # train_ds = train_data.map(scale).cache().shuffle(
-    #     BUFFER_SIZE).batch(BATCH_SIZE)
-    # val_ds = test_data.map(scale).batch(BATCH_SIZE)
-    train_ds = train_data.cache().shuffle(
-        BUFFER_SIZE).batch(BATCH_SIZE)
-    val_ds = test_data.batch(BATCH_SIZE)
 
     global model
     metricname='accuracy'
