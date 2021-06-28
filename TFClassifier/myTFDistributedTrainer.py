@@ -12,6 +12,8 @@ import time
 import os
 print(tf.__version__)
 
+from Datasetutil.TFdatasetutil import loadtfds, loadkerasdataset
+
 model = None 
 # import logger
 
@@ -20,8 +22,8 @@ parser.add_argument('--tfds_dataname', type=str, default='mnist',
                     help='path to get data')
 parser.add_argument('--data_path', type=str, default='/home/kaikai/.keras/datasets/flower_photos',
                     help='path to get data')
-parser.add_argument('--save_path', type=str, default='./logs',
-                    help='path to save the model and logs')
+parser.add_argument('--save_path', type=str, default='./outputs',
+                    help='path to save the model')
 parser.add_argument('--data_type', default='folder', choices=['folder', 'TFrecord'],
                     help='the type of data')  # gs://cmpelkk_imagetest/*.tfrec
 # network
@@ -42,26 +44,26 @@ parser.add_argument('--TPU', type=bool, default=False,
 args = parser.parse_args()
 
 
-def loadtfds(name='mnist'):
-    import tensorflow_datasets as tfds
-    datasets, info = tfds.load(name, with_info=True, as_supervised=True) #downloaded and prepared to /home/lkk/tensorflow_datasets/mnist/3.0.1.
-    train, test = datasets['train'], datasets['test'] 
+# def loadtfds(name='mnist'):
+#     import tensorflow_datasets as tfds
+#     datasets, info = tfds.load(name, with_info=True, as_supervised=True) #downloaded and prepared to /home/lkk/tensorflow_datasets/mnist/3.0.1.
+#     train, test = datasets['train'], datasets['test'] 
 
-    # You can also do info.splits.total_num_examples to get the total
-    # number of examples in the dataset.
+#     # You can also do info.splits.total_num_examples to get the total
+#     # number of examples in the dataset.
 
-    num_train_examples = info.splits['train'].num_examples
-    num_test_examples = info.splits['test'].num_examples
-    return train, test, num_train_examples, num_test_examples
+#     num_train_examples = info.splits['train'].num_examples
+#     num_test_examples = info.splits['test'].num_examples
+#     return train, test, num_train_examples, num_test_examples
 
 # Pixel values, which are 0-255, have to be normalized to the 0-1 range. Define this scale in a function.
 
 
-def scale(image, label):
-    image = tf.cast(image, tf.float32)
-    image /= 255
+# def scale(image, label):
+#     image = tf.cast(image, tf.float32)
+#     image /= 255
 
-    return image, label
+#     return image, label
 
 
 def create_model(strategy,numclasses, metricname='accuracy'):
@@ -138,14 +140,22 @@ def main():
         BATCH_SIZE_PER_REPLICA = args.batchsize #64
         BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
 
-    train_data, test_data, num_train_examples, num_test_examples = loadtfds(
-        args.tfds_dataname)
+
+    train_data, test_data, num_train_examples, num_test_examples =loadkerasdataset()
+    #train_data, test_data, num_train_examples, num_test_examples = loadtfds(args.tfds_dataname)
+    print(num_train_examples)
+
+    # train_data, test_data, num_train_examples, num_test_examples = loadtfds(
+    #     args.tfds_dataname)
     # Apply this function to the training and test data, shuffle the training data, and batch it for training.
     # This dataset fills a buffer with buffer_size elements, then randomly samples elements from this buffer, replacing the selected elements with new elements. For perfect shuffling, a buffer size greater than or equal to the full size of the dataset is required.
     # https://www.tensorflow.org/api_docs/python/tf/data/Dataset#shuffle
-    train_ds = train_data.map(scale).cache().shuffle(
+    # train_ds = train_data.map(scale).cache().shuffle(
+    #     BUFFER_SIZE).batch(BATCH_SIZE)
+    # val_ds = test_data.map(scale).batch(BATCH_SIZE)
+    train_ds = train_data.cache().shuffle(
         BUFFER_SIZE).batch(BATCH_SIZE)
-    val_ds = test_data.map(scale).batch(BATCH_SIZE)
+    val_ds = test_data.batch(BATCH_SIZE)
 
     global model
     metricname='accuracy'
@@ -180,6 +190,9 @@ def main():
     print("TRAINING TIME: ", time.time() - start_time, " sec")
 
     plot_history(history, metricname, valmetricname)
+
+    #Export the graph and the variables to the platform-agnostic SavedModel format. After your model is saved, you can load it with or without the scope.
+    model.save(args.save_path, save_format='tf')
 
 if __name__ == '__main__':
     main()
