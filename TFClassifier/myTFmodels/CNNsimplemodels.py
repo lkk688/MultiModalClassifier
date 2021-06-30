@@ -7,6 +7,12 @@ def createCNNsimplemodel(name, numclasses, img_shape, metrics=['accuracy']):
     #img_shape (img_height, img_width, 3)
     if name=='cnnsimple1':
         return create_simplemodel1(numclasses, img_shape, metrics)
+    elif name=='cnnsimple2':
+        return create_simplemodel2(numclasses, img_shape, metrics)
+    elif name=='cnnsimple3':
+        return create_simplemodel3(numclasses, img_shape, metrics)
+    elif name=='cnnsimple4':
+        return create_simplemodel4(numclasses, img_shape, metrics)
 
 
 def create_simplemodel1(numclasses, img_shape, metrics=['accuracy']):
@@ -63,13 +69,43 @@ def create_simplemodel2(numclasses, img_shape, metrics=['sparse_categorical_accu
 
 def create_simplemodel3(numclasses, img_shape, metrics=['accuracy']):
     model = Sequential([
-        layers.experimental.preprocessing.Rescaling(1./255, input_shape=img_shape),
+        #layers.experimental.preprocessing.Rescaling(1./255, input_shape=img_shape),
+        layers.Conv2D(16, 3, padding='same', activation='relu', input_shape=img_shape),
+        layers.MaxPooling2D(),
+        layers.Conv2D(32, 3, padding='same', activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Conv2D(64, 3, padding='same', activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Flatten(),
+        layers.Dense(128, activation='relu'),
+        layers.Dense(numclasses) #activation='softmax'
+        ])
+    
+    model.compile(optimizer='adam',
+              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+              metrics=metrics)
+    return model
+
+def create_simplemodel4(numclasses, img_shape, metrics=['accuracy']):
+    data_augmentation = keras.Sequential(
+        [
+            layers.experimental.preprocessing.RandomFlip("horizontal", 
+                                                        input_shape=img_shape),
+            layers.experimental.preprocessing.RandomRotation(0.1),
+            layers.experimental.preprocessing.RandomZoom(0.1),
+        ]
+    )
+
+    model = Sequential([
+        data_augmentation,
+        #layers.experimental.preprocessing.Rescaling(1./255),
         layers.Conv2D(16, 3, padding='same', activation='relu'),
         layers.MaxPooling2D(),
         layers.Conv2D(32, 3, padding='same', activation='relu'),
         layers.MaxPooling2D(),
         layers.Conv2D(64, 3, padding='same', activation='relu'),
         layers.MaxPooling2D(),
+        layers.Dropout(0.2),
         layers.Flatten(),
         layers.Dense(128, activation='relu'),
         layers.Dense(numclasses)

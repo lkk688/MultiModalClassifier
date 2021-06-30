@@ -28,7 +28,7 @@ def loadTFdataset(name, type, path='/home/lkk/.keras/datasets/flower_photos', im
         train_data, test_data, num_train_examples, num_test_examples, class_names, imageshape = loadkerasdataset(name)
         train_ds, val_ds = setBatchtoTFdataset(train_data, test_data, batch_size)
     elif type=='imagefolder':
-        train_ds, val_ds, class_names=loadimagefolderdataset(name, path, img_height, img_width, batch_size)
+        train_ds, val_ds, class_names, imageshape=loadimagefolderdataset(name, path, 'jpg', img_height, img_width, batch_size)
     else:
         print('Data tpye not supported')
         exit()
@@ -41,7 +41,7 @@ def loadtfds(name='mnist'):
 
     #use the TFDS API to visualize how our images look like
     fig = tfds.show_examples(train, info)
-    fig.savefig('tfdsvis.png')
+    fig.savefig('./outputs/tfdsvis.png')
 
     ds = train.take(1)#https://www.tensorflow.org/datasets/overview#installation
     for image, label in tfds.as_numpy(ds):
@@ -121,21 +121,22 @@ def setBatchtoTFdataset(train_data, test_data, BATCH_SIZE=32, BUFFER_SIZE=10000)
     return train_ds, val_ds
 
 # Pixel values, which are 0-255, have to be normalized to the 0-1 range. Define this scale in a function.
-# def scale(image, label):
-#     image = tf.cast(image, tf.float32)
-#     image /= 255
-#     return image, label
+@tf.function
+def scale(image, label):
+    image = tf.cast(image, tf.float32)
+    image /= 255
+    return image, label
 
 @tf.function
 def scale_resize_image(image, label):
-    image = tf.image.convert_image_dtype(image, tf.float32) # equivalent to dividing image pixels by 255
+    image = tf.image.convert_image_dtype(image, tf.float32) 
     image = tf.image.resize(image, (IMG_height, IMG_width)) # Resizing the image to  dimention
     return (image, label)
 
-@tf.function
-def scale(image, label):
-    image = tf.image.convert_image_dtype(image, tf.float32)
-    return (image, label)
+# @tf.function
+# def scale(image, label):
+#     image = tf.image.convert_image_dtype(image, tf.float32)
+#     return (image, label)
 
 @tf.function
 def random_crop(images, labels):
@@ -192,12 +193,17 @@ def loadimagefolderdataset(name, imagefolderpath='~/.keras/datasets/flower_photo
     #manually iterate over the dataset and retrieve batches of images:
     #This is a batch of 32 images of shape 180x180x3 (the last dimension referes to color channels RGB). The label_batch is a tensor of the shape (32,), these are corresponding labels to the 32 images.
     for image_batch, labels_batch in train_ds:
+        imagetensorshape = image_batch.get_shape().as_list()
+        imageshape=imagetensorshape[1:]
         print(image_batch.shape)
         print(labels_batch.shape)
         break
 
+    train_ds=train_ds.map(scale, num_parallel_calls=AUTO)#scale to 0-1
+    val_ds=val_ds.map(scale, num_parallel_calls=AUTO)
+
     plot9imagesfromtfdataset(train_ds, class_names)
-    return train_ds, val_ds, class_names
+    return train_ds, val_ds, class_names, imageshape
 
 
 def test_sum():
@@ -205,6 +211,7 @@ def test_sum():
 
 if __name__ == "__main__":
     test_sum()
-    train_ds, val_ds, class_names, img_size = loadTFdataset('mnist', 'tfds')
+    #train_ds, val_ds, class_names, imageshape = loadTFdataset('mnist', 'tfds')
+    train_ds, val_ds, class_names, imageshape = loadTFdataset('flower', 'imagefolder')
     print(len(train_ds))
     print("Everything passed")
