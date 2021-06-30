@@ -12,22 +12,23 @@ import time
 import os
 print(tf.__version__)
 
-from Datasetutil.TFdatasetutil import loadtfds, loadkerasdataset, loadimagefolderdataset
+from Datasetutil.TFdatasetutil import loadTFdataset #loadtfds, loadkerasdataset, loadimagefolderdataset
+from myTFmodels.CNNsimplemodels import createCNNsimplemodel
 
 model = None 
 # import logger
 
 parser = configargparse.ArgParser(description='myTFDistributedClassify')
-parser.add_argument('--tfds_dataname', type=str, default='mnist',
-                    help='path to get data')
+parser.add_argument('--data_name', type=str, default='fashionMNIST',
+                    help='data name mnist, fashionMNIST')
+parser.add_argument('--data_type', default='kerasdataset', choices=['tfds', 'kerasdataset', 'imagefolder', 'TFrecord'],
+                    help='the type of data')  # gs://cmpelkk_imagetest/*.tfrec
 parser.add_argument('--data_path', type=str, default='/home/kaikai/.keras/datasets/flower_photos',
                     help='path to get data')
 parser.add_argument('--save_path', type=str, default='./outputs/fashion',
                     help='path to save the model')
-parser.add_argument('--data_type', default='folder', choices=['folder', 'TFrecord'],
-                    help='the type of data')  # gs://cmpelkk_imagetest/*.tfrec
 # network
-parser.add_argument('--model_name', default='depth', choices=['disparity', 'depth'],
+parser.add_argument('--model_name', default='cnnsimple1', choices=['cnnsimple1', 'cnnsimple2'],
                     help='the network')
 parser.add_argument('--arch', default='Tensorflow', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Tensorflow.')
@@ -141,18 +142,27 @@ def main():
         BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
 
 
-    train_ds, test_data, num_train_examples, num_test_examples, class_names=loadimagefolderdataset('flower')
+    train_ds, val_ds, class_names, imageshape = loadTFdataset(args.data_name, args.data_type)
+    #train_ds, test_data, num_train_examples, num_test_examples, class_names=loadimagefolderdataset('flower')
     #train_data, test_data, num_train_examples, num_test_examples =loadkerasdataset('cifar10')
     #train_data, test_data, num_train_examples, num_test_examples = loadtfds(args.tfds_dataname)
-    print(num_train_examples)
 
     # train_data, test_data, num_train_examples, num_test_examples = loadtfds(
     #     args.tfds_dataname)
 
+    #Tune for performance
+    AUTOTUNE = tf.data.AUTOTUNE
+    train_ds = train_ds.cache().shuffle(BUFFER_SIZE).prefetch(buffer_size=AUTOTUNE)
+    val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
+
+    numclasses=len(class_names)
+
     global model
     metricname='accuracy'
-    numclasses=10
-    model = create_model(strategy,numclasses, metricname)
+    metrics=[metricname]
+    with strategy.scope():
+        model = createCNNsimplemodel(args.model_name, numclasses, imageshape, metrics)
+    #model = create_model(strategy,numclasses, metricname)
     model.summary()
 
     # Define the checkpoint directory to store the checkpoints
@@ -168,8 +178,8 @@ def main():
         PrintLR()
     ]
 
-    steps_per_epoch = num_train_examples // BATCH_SIZE  # 2936 is the length of train data
-    print("steps_per_epoch:", steps_per_epoch)
+    #steps_per_epoch = num_train_examples // BATCH_SIZE  # 2936 is the length of train data
+    #print("steps_per_epoch:", steps_per_epoch)
     start_time = time.time()
     #train the model 
     history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
@@ -185,6 +195,9 @@ def main():
 
     #Export the graph and the variables to the platform-agnostic SavedModel format. After your model is saved, you can load it with or without the scope.
     model.save(args.save_path, save_format='tf')
+
+    eval_loss, eval_acc = model.evaluate(val_ds)
+    print('Eval loss: {}, Eval Accuracy: {}'.format(eval_loss, eval_acc))
 
 if __name__ == '__main__':
     main()

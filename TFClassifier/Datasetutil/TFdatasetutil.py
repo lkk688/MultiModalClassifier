@@ -2,27 +2,50 @@ import tensorflow as tf
 import numpy as np
 
 #from .Visutil import plot25images, plot9imagesfromtfdataset
-import Visutil
+#import Visutil
+import Datasetutil.Visutil as Visutil
 
+AUTO = tf.data.experimental.AUTOTUNE
+
+BATCH_SIZE = 32
+IMG_height = 180
+IMG_width = 180
 
 def loadTFdataset(name, type, path='/home/lkk/.keras/datasets/flower_photos', img_height=180, img_width=180, batch_size=32):
+    global BATCH_SIZE
+    BATCH_SIZE=batch_size
+    global IMG_height, IMG_width
+    IMG_height = img_height
+    IMG_width = img_width
+
     if type=='tfds':
-        train_data, test_data, num_train_examples, num_test_examples, class_names = loadtfds(name)
+        train_data, test_data, num_train_examples, num_test_examples, class_names, imageshape = loadtfds(name)
         train_ds, val_ds = setBatchtoTFdataset(train_data, test_data, batch_size)
+        Visutil.plot9imagesfromtfdataset(train_ds, class_names)
     elif type=='kerasdataset':
-        train_data, test_data, num_train_examples, num_test_examples, class_names = loadkerasdataset(name)
+        train_data, test_data, num_train_examples, num_test_examples, class_names, imageshape = loadkerasdataset(name)
         train_ds, val_ds = setBatchtoTFdataset(train_data, test_data, batch_size)
     elif type=='imagefolder':
         train_ds, val_ds, class_names=loadimagefolderdataset(name, path, img_height, img_width, batch_size)
     else:
         print('Data tpye not supported')
         exit()
-    return train_ds, val_ds, class_names
+    return train_ds, val_ds, class_names, imageshape
 
 def loadtfds(name='mnist'):
     import tensorflow_datasets as tfds
-    datasets, info = tfds.load(name, with_info=True, as_supervised=True) #downloaded and prepared to /home/lkk/tensorflow_datasets/mnist/3.0.1.
+    datasets, info = tfds.load(name, with_info=True, as_supervised=True) #downloaded and prepared to /home/lkk/tensorflow_datasets/mnist/3.0.1.    
     train, test = datasets['train'], datasets['test'] 
+
+    #use the TFDS API to visualize how our images look like
+    fig = tfds.show_examples(train, info)
+    fig.savefig('tfdsvis.png')
+
+    ds = train.take(1)#https://www.tensorflow.org/datasets/overview#installation
+    for image, label in tfds.as_numpy(ds):
+        print(np.min(image), np.max(image)) #0, 255
+        print(type(image), type(label), label) #<class 'numpy.ndarray'> <class 'numpy.int64'> 4
+
 
     # You can also do info.splits.total_num_examples to get the total
     # number of examples in the dataset.
@@ -31,10 +54,17 @@ def loadtfds(name='mnist'):
     num_test_examples = info.splits['test'].num_examples
 
     class_names = info.features['label'].names
+    print("Num classes: " + str(info.features['label'].num_classes))
+    imageshape =info.features['image'].shape
+    global IMG_height, IMG_width
+    IMG_height = imageshape[0]
+    IMG_width = imageshape[1]
+    print(imageshape)#(28, 28, 1)
 
-    train_data=train.map(scale)
-    test_data=test.map(scale)
-    return train_data, test_data, num_train_examples, num_test_examples, class_names
+    train_data=train.map(scale, num_parallel_calls=AUTO)#scale to 0-1
+    test_data=test.map(scale, num_parallel_calls=AUTO)
+
+    return train_data, test_data, num_train_examples, num_test_examples, class_names, imageshape
 
 def loadkerasdataset(name='fashionMNIST'):
     if name=='fashionMNIST':
@@ -66,13 +96,15 @@ def loadkerasdataset(name='fashionMNIST'):
     train_images = train_images[..., None]#(60000, 28, 28, 1)
     test_images = test_images[..., None]#(10000, 28, 28, 1)
 
+    imageshape=train_images.shape[1:]
+
     #The given tensors are sliced along their first dimension.
     train_dataset = tf.data.Dataset.from_tensor_slices((train_images, train_labels))
     test_dataset = tf.data.Dataset.from_tensor_slices((test_images, test_labels))
     num_train=len(train_dataset)#60000
     num_test=len(test_dataset)
 
-    return train_dataset, test_dataset, num_train, num_test, class_names
+    return train_dataset, test_dataset, num_train, num_test, class_names, imageshape
 
 def setBatchtoTFdataset(train_data, test_data, BATCH_SIZE=32, BUFFER_SIZE=10000):
     # Apply this function to the training and test data, shuffle the training data, and batch it for training.
@@ -87,11 +119,28 @@ def setBatchtoTFdataset(train_data, test_data, BATCH_SIZE=32, BUFFER_SIZE=10000)
     return train_ds, val_ds
 
 # Pixel values, which are 0-255, have to be normalized to the 0-1 range. Define this scale in a function.
-def scale(image, label):
-    image = tf.cast(image, tf.float32)
-    image /= 255
+# def scale(image, label):
+#     image = tf.cast(image, tf.float32)
+#     image /= 255
+#     return image, label
 
-    return image, label
+@tf.function
+def scale_resize_image(image, label):
+    image = tf.image.convert_image_dtype(image, tf.float32) # equivalent to dividing image pixels by 255
+    image = tf.image.resize(image, (IMG_height, IMG_width)) # Resizing the image to  dimention
+    return (image, label)
+
+@tf.function
+def scale(image, label):
+    image = tf.image.convert_image_dtype(image, tf.float32)
+    return (image, label)
+
+@tf.function
+def random_crop(images, labels):
+    boxes = tf.random.uniform(shape=(len(images), 4))
+    box_indices = tf.random.uniform(shape=(len(images),), minval=0, maxval=BATCH_SIZE, dtype=tf.int32)
+    images = tf.image.crop_and_resize(images, boxes, box_indices, (IMG_height,IMG_width))
+    return images, labels
 
 def loadimagefolderdataset(name, imagefolderpath='~/.keras/datasets/flower_photos', imageformat='jpg', img_height=180, img_width=180, batch_size=32):
     import pathlib
@@ -154,6 +203,6 @@ def test_sum():
 
 if __name__ == "__main__":
     test_sum()
-    train_ds, val_ds, class_names = loadTFdataset('mnist', 'tfds')
+    train_ds, val_ds, class_names, img_size = loadTFdataset('mnist', 'tfds')
     print(len(train_ds))
     print("Everything passed")
