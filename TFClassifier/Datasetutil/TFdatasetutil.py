@@ -3,7 +3,9 @@ import numpy as np
 
 #from .Visutil import plot25images, plot9imagesfromtfdataset
 #import Visutil
-import Datasetutil.Visutil as Visutil
+#import Datasetutil.Visutil as Visutil
+#from Datasetutil.Visutil import Visutil
+from TFClassifier.Datasetutil.Visutil import plot25images, plot9imagesfromtfdataset
 
 AUTO = tf.data.experimental.AUTOTUNE
 
@@ -21,7 +23,7 @@ def loadTFdataset(name, type, path='/home/lkk/.keras/datasets/flower_photos', im
     if type=='tfds':
         train_data, test_data, num_train_examples, num_test_examples, class_names, imageshape = loadtfds(name)
         train_ds, val_ds = setBatchtoTFdataset(train_data, test_data, batch_size)
-        Visutil.plot9imagesfromtfdataset(train_ds, class_names)
+        plot9imagesfromtfdataset(train_ds, class_names)
     elif type=='kerasdataset':
         train_data, test_data, num_train_examples, num_test_examples, class_names, imageshape = loadkerasdataset(name)
         train_ds, val_ds = setBatchtoTFdataset(train_data, test_data, batch_size)
@@ -87,7 +89,7 @@ def loadkerasdataset(name='fashionMNIST'):
     train_images = train_images / np.float32(255)
     test_images = test_images / np.float32(255)
 
-    Visutil.plot25images(train_images, train_labels, class_names)
+    plot25images(train_images, train_labels, class_names)
 
     # Adding a dimension to the array -> new shape == (28, 28, 1)
     # We are doing this because the first layer in our model is a convolutional
@@ -194,7 +196,7 @@ def loadimagefolderdataset(name, imagefolderpath='~/.keras/datasets/flower_photo
         print(labels_batch.shape)
         break
 
-    Visutil.plot9imagesfromtfdataset(train_ds, class_names)
+    plot9imagesfromtfdataset(train_ds, class_names)
     return train_ds, val_ds, class_names
 
 
