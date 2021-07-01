@@ -13,6 +13,8 @@ def createCNNsimplemodel(name, numclasses, img_shape, metrics=['accuracy']):
         return create_simplemodel3(numclasses, img_shape, metrics)
     elif name=='cnnsimple4':
         return create_simplemodel4(numclasses, img_shape, metrics)
+    elif name=='mobilenetmodel1':
+        return create_mobilenetmodel1(numclasses, img_shape, metrics)
 
 
 def create_simplemodel1(numclasses, img_shape, metrics=['accuracy']):
@@ -114,4 +116,29 @@ def create_simplemodel4(numclasses, img_shape, metrics=['accuracy']):
     model.compile(optimizer='adam',
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
               metrics=metrics)
+    return model
+
+def create_mobilenetmodel1(numclasses, img_shape, metrics=['accuracy']):
+    pretrained_model = tf.keras.applications.MobileNetV2(input_shape=img_shape, include_top=False, weights='imagenet')
+    pretrained_model.trainable = False #True
+
+    model = tf.keras.Sequential([
+        pretrained_model,
+        #tf.keras.layers.Flatten(),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.GlobalAveragePooling2D(),
+        tf.keras.layers.Dense(numclasses, activation='softmax')
+        # tf.keras.layers.Conv2D(32, 3, activation='relu'),
+        # tf.keras.layers.Dropout(0.5),
+        # tf.keras.layers.GlobalAveragePooling2D(),
+        # tf.keras.layers.Dense(numclasses, activation='softmax')
+    ])
+
+    model.compile(
+        optimizer='adam',
+        #loss = 'categorical_crossentropy',
+        loss = 'sparse_categorical_crossentropy',
+        metrics=metrics
+    )
+
     return model

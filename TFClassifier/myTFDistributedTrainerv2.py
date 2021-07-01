@@ -23,10 +23,14 @@ parser.add_argument('--data_type', default='imagefolder', choices=['tfds', 'kera
                     help='the type of data')  # gs://cmpelkk_imagetest/*.tfrec
 parser.add_argument('--data_path', type=str, default='/home/lkk/.keras/datasets/flower_photos',
                     help='path to get data')
+parser.add_argument('--img_height', type=int, default=224,
+                    help='resize to img height')
+parser.add_argument('--img_width', type=int, default=224,
+                    help='resize to img width')
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='cnnsimple4', choices=['cnnsimple1', 'cnnsimple2', 'cnnsimple3', 'cnnsimple4'],
+parser.add_argument('--model_name', default='cnnsimple4', choices=['cnnsimple1', 'cnnsimple2', 'cnnsimple3', 'cnnsimple4','mobilenetmodel1'],
                     help='the network')
 parser.add_argument('--arch', default='Tensorflow', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Tensorflow.')
@@ -45,6 +49,7 @@ args = parser.parse_args()
 
 # Function for decaying the learning rate.
 # You can define any decay function you need.
+#default learning rate=0.0010000000474974513
 def learningratefn(epoch):
     if epoch < 3:
         return 1e-3
@@ -80,7 +85,8 @@ def main():
         BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
 
 
-    train_ds, val_ds, class_names, imageshape = loadTFdataset(args.data_name, args.data_type)
+    #train_ds, val_ds, class_names, imageshape = loadTFdataset(args.data_name, args.data_type)
+    train_ds, val_ds, class_names, imageshape = loadTFdataset(args.data_name, args.data_type, args.data_path, args.img_height, args.img_width, BATCH_SIZE)
     #train_ds, test_data, num_train_examples, num_test_examples, class_names=loadimagefolderdataset('flower')
     #train_data, test_data, num_train_examples, num_test_examples =loadkerasdataset('cifar10')
     #train_data, test_data, num_train_examples, num_test_examples = loadtfds(args.tfds_dataname)
@@ -112,7 +118,7 @@ def main():
         tf.keras.callbacks.TensorBoard(log_dir=args.save_path),
         tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix,
                                         save_weights_only=True),
-        tf.keras.callbacks.LearningRateScheduler(learningratefn),
+        #tf.keras.callbacks.LearningRateScheduler(learningratefn),
         PrintLR()
     ]
 
