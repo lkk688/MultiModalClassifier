@@ -11,7 +11,7 @@ print(tf.__version__)
 from TFClassifier.Datasetutil.TFdatasetutil import loadTFdataset #loadtfds, loadkerasdataset, loadimagefolderdataset
 from TFClassifier.myTFmodels.CNNsimplemodels import createCNNsimplemodel
 from TFClassifier.Datasetutil.Visutil import plot25images, plot9imagesfromtfdataset, plot_history
-
+from TFClassifier.myTFmodels.optimizer_factory import build_learning_rate, setupTensorboardWriterforLR
 
 model = None 
 # import logger
@@ -34,6 +34,8 @@ parser.add_argument('--model_name', default='cnnsimple4', choices=['cnnsimple1',
                     help='the network')
 parser.add_argument('--arch', default='Tensorflow', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Tensorflow.')
+parser.add_argument('--learningratename', default='fixedstep', choices=['fixedstep', 'fixed', 'warmupexpdecay'],
+                    help='path to save the model')
 parser.add_argument('--batchsize', type=int, default=32,
                     help='batch size')
 parser.add_argument('--epochs', type=int, default=15,
@@ -46,17 +48,6 @@ parser.add_argument('--TPU', type=bool, default=False,
 
 args = parser.parse_args()
 
-
-# Function for decaying the learning rate.
-# You can define any decay function you need.
-#default learning rate=0.0010000000474974513
-def learningratefn(epoch):
-    if epoch < 3:
-        return 1e-3
-    elif epoch >= 3 and epoch < 7:
-        return 1e-4
-    else:
-        return 1e-5
 
 # Callback for printing the LR at the end of each epoch.
 class PrintLR(tf.keras.callbacks.Callback):
@@ -114,13 +105,18 @@ def main():
     # Name of the checkpoint files
     checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
 
+    setupTensorboardWriterforLR(args.save_path)
+
     callbacks = [
         tf.keras.callbacks.TensorBoard(log_dir=args.save_path),
         tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix,
                                         save_weights_only=True),
+        build_learning_rate(args.learningratename),
         #tf.keras.callbacks.LearningRateScheduler(learningratefn),
         PrintLR()
     ]
+
+    print("Initial learning rate: ", round(model.optimizer.lr.numpy(), 5))
 
     #steps_per_epoch = num_train_examples // BATCH_SIZE  # 2936 is the length of train data
     #print("steps_per_epoch:", steps_per_epoch)
