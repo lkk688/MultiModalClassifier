@@ -44,6 +44,8 @@ parser.add_argument('--GPU', type=bool, default=True,
                     help='use GPU')
 parser.add_argument('--TPU', type=bool, default=False,
                     help='use GPU')
+parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
+                    help='use MIXED_PRECISION')
 
 
 args = parser.parse_args()
@@ -64,17 +66,45 @@ def main():
     args.save_path=args.save_path+args.data_name+'_'+args.model_name+'_'+TAG
     print("Output path:", args.save_path)
 
+    # mixed precision
+    # On TPU, bfloat16/float32 mixed precision is automatically used in TPU computations.
+    # Enabling it in Keras also stores relevant variables in bfloat16 format (memory optimization).
+    # On GPU, specifically V100, mixed precision must be enabled for hardware TensorCores to be used.
+    # XLA compilation must be enabled for this to work. (On TPU, XLA compilation is the default)
+    if args.MIXED_PRECISION:
+        if args.tpu: 
+            policy = tf.keras.mixed_precision.experimental.Policy('mixed_bfloat16')
+        else: #
+            policy = tf.keras.mixed_precision.experimental.Policy('mixed_float16')
+            tf.config.optimizer.set_jit(True) # XLA compilation
+        tf.keras.mixed_precision.experimental.set_policy(policy)
+        print('Mixed precision enabled')
+
     if args.GPU:
         physical_devices = tf.config.list_physical_devices('GPU')
         num_gpu = len(physical_devices)
         print("Num GPUs:", num_gpu)
         # Create a MirroredStrategy object. This will handle distribution, and provides a context manager (tf.distribute.MirroredStrategy.scope) to build your model inside.
         strategy = tf.distribute.MirroredStrategy()  # for GPU or multi-GPU machines
-        print("Number of accelerators: ", strategy.num_replicas_in_sync)
-        BUFFER_SIZE = 10000
-        BATCH_SIZE_PER_REPLICA = args.batchsize #64
-        BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
+    elif args.TPU:
+        #TPU detection, do together
+        try: # detect TPUs
+            tpu = None
+            tpu = tf.distribute.cluster_resolver.TPUClusterResolver() # TPU detection
+            tf.config.experimental_connect_to_cluster(tpu)
+            tf.tpu.experimental.initialize_tpu_system(tpu)
+            strategy = tf.distribute.experimental.TPUStrategy(tpu)
+        except ValueError: # detect GPUs
+            #strategy = tf.distribute.MirroredStrategy() # for GPU or multi-GPU machines
+            strategy = tf.distribute.get_strategy() # default strategy that works on CPU and single GPU
+            #strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy() # for clusters of multi-GPU machines
+    else:
+        print("No GPU and TPU enabled")
 
+    print("Number of accelerators: ", strategy.num_replicas_in_sync)
+    BUFFER_SIZE = 10000
+    BATCH_SIZE_PER_REPLICA = args.batchsize #64
+    BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
 
     #train_ds, val_ds, class_names, imageshape = loadTFdataset(args.data_name, args.data_type)
     train_ds, val_ds, class_names, imageshape = loadTFdataset(args.data_name, args.data_type, args.data_path, args.img_height, args.img_width, BATCH_SIZE)

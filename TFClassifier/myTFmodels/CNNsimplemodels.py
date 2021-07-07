@@ -3,6 +3,8 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.models import Sequential
 
+#Data augmentation and Dropout layers are inactive at inference time.
+
 def createCNNsimplemodel(name, numclasses, img_shape, metrics=['accuracy']):
     #img_shape (img_height, img_width, 3)
     if name=='cnnsimple1':
@@ -127,6 +129,31 @@ def create_mobilenetmodel1(numclasses, img_shape, metrics=['accuracy']):
         #tf.keras.layers.Flatten(),
         tf.keras.layers.Dropout(0.5),
         tf.keras.layers.GlobalAveragePooling2D(),
+        tf.keras.layers.Dense(numclasses, activation='softmax')
+        # tf.keras.layers.Conv2D(32, 3, activation='relu'),
+        # tf.keras.layers.Dropout(0.5),
+        # tf.keras.layers.GlobalAveragePooling2D(),
+        # tf.keras.layers.Dense(numclasses, activation='softmax')
+    ])
+
+    model.compile(
+        optimizer='adam',
+        #loss = 'categorical_crossentropy',
+        loss = 'sparse_categorical_crossentropy',
+        metrics=metrics
+    )
+
+    return model
+
+
+def create_Xceptionmodel1(numclasses, img_shape, metrics=['accuracy']):
+    pretrained_model = tf.keras.applications.Xception(input_shape=img_shape, include_top=False, weights='imagenet')
+    pretrained_model.trainable = True #False #True
+
+    model = tf.keras.Sequential([
+        pretrained_model,
+        tf.keras.layers.GlobalAveragePooling2D(),
+        #tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(numclasses, activation='softmax')
         # tf.keras.layers.Conv2D(32, 3, activation='relu'),
         # tf.keras.layers.Dropout(0.5),
