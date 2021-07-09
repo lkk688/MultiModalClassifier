@@ -145,6 +145,8 @@ def random_crop(images, labels):
     images = tf.image.crop_and_resize(images, boxes, box_indices, (IMG_height,IMG_width))
     return images, labels
 
+
+#/home/lkk/.keras/datasets/cats_and_dogs_filtered, /home/lkk/.keras/datasets/flower_photos
 def loadimagefolderdataset(name, imagefolderpath='~/.keras/datasets/flower_photos', imageformat='jpg', img_height=180, img_width=180, batch_size=32):
     import pathlib
     data_dir = pathlib.Path(imagefolderpath)
@@ -205,6 +207,63 @@ def loadimagefolderdataset(name, imagefolderpath='~/.keras/datasets/flower_photo
     plot9imagesfromtfdataset(train_ds, class_names)
     return train_ds, val_ds, class_names, imageshape
 
+def loadimagetrainvalfolderdataset(name, trainpath='/home/lkk/.keras/datasets/cats_and_dogs_filtered/train', valpath='/home/lkk/.keras/datasets/cats_and_dogs_filtered/validation', imageformat='jpg', img_height=180, img_width=180, batch_size=32):
+    import pathlib
+    train_dir = pathlib.Path(trainpath)
+    val_dir = pathlib.Path(valpath)
+    if imageformat=='jpg' or imageformat=='png':
+        imagepattern='*/*.'+imageformat
+        train_image_count = len(list(train_dir.glob(imagepattern)))
+        val_image_count = len(list(val_dir.glob(imagepattern)))
+        if train_image_count>0 and val_image_count>0:
+            print("train image_count: ", train_image_count)
+            print("val image_count: ", val_image_count)
+        else:
+            print('Image folder does not have images')
+            exit()
+    else:
+        print("file format not supported")
+        exit()
+    
+    #create dataset
+    train_ds = tf.keras.preprocessing.image_dataset_from_directory(
+        train_dir,
+        shuffle=True,
+        image_size=(img_height, img_width),
+        batch_size=batch_size)
+    
+    val_ds = tf.keras.preprocessing.image_dataset_from_directory(
+        val_dir,
+        shuffle=True,
+        image_size=(img_height, img_width),
+        batch_size=batch_size)
+    
+    class_names = train_ds.class_names
+    print("class_names:",class_names)
+    #see the length of each dataset as follows:
+    num_train_batch=tf.data.experimental.cardinality(train_ds).numpy()
+    num_val_batch=tf.data.experimental.cardinality(val_ds).numpy()
+
+    #if need test_dataset, move 20% of them to a test set
+    # test_dataset = val_ds.take(num_val_batch // 5)
+    # val_ds = val_ds.skip(num_val_batch // 5)
+    # print('Number of validation batches: %d' % tf.data.experimental.cardinality(val_ds))
+    # print('Number of test batches: %d' % tf.data.experimental.cardinality(test_dataset))
+
+    #manually iterate over the dataset and retrieve batches of images:
+    #This is a batch of 32 images of shape 180x180x3 (the last dimension referes to color channels RGB). The label_batch is a tensor of the shape (32,), these are corresponding labels to the 32 images.
+    for image_batch, labels_batch in train_ds:
+        imagetensorshape = image_batch.get_shape().as_list()
+        imageshape=imagetensorshape[1:]
+        print(image_batch.shape)
+        print(labels_batch.shape)
+        break
+
+    train_ds=train_ds.map(scale, num_parallel_calls=AUTO)#scale to 0-1
+    val_ds=val_ds.map(scale, num_parallel_calls=AUTO)
+
+    plot9imagesfromtfdataset(train_ds, class_names)
+    return train_ds, val_ds, class_names, imageshape
 
 def test_sum():
     assert sum([1, 2, 3]) == 6, "Should be 6"

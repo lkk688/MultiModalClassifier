@@ -17,6 +17,10 @@ def createCNNsimplemodel(name, numclasses, img_shape, metrics=['accuracy']):
         return create_simplemodel4(numclasses, img_shape, metrics)
     elif name=='mobilenetmodel1':
         return create_mobilenetmodel1(numclasses, img_shape, metrics)
+    elif name=='mobilenetmodel2':
+        return create_mobilenetmodel2(numclasses, img_shape, metrics)
+    elif name=='xceptionmodel1':
+        return create_Xceptionmodel1(numclasses, img_shape, metrics)
 
 
 def create_simplemodel1(numclasses, img_shape, metrics=['accuracy']):
@@ -145,6 +149,51 @@ def create_mobilenetmodel1(numclasses, img_shape, metrics=['accuracy']):
 
     return model
 
+#add data augmentation into the model
+def create_mobilenetmodel2(numclasses, img_shape, metrics=['accuracy']):
+    #These layers are active only during training, when you call model.fit. They are inactive when the model is used in inference mode in model.evaulate or model.fit.
+    data_augmentation = tf.keras.Sequential([
+        tf.keras.layers.experimental.preprocessing.RandomFlip('horizontal'),
+        tf.keras.layers.experimental.preprocessing.RandomRotation(0.2),
+        ])
+    
+    #tf.keras.applications.MobileNetV2 expects pixel values in [-1, 1], but at this point, the pixel values in your images are in [0, 255]. To rescale them, use the preprocessing method included with the model.
+    preprocess_input = tf.keras.applications.mobilenet_v2.preprocess_input
+    #Alternatively, you could rescale pixel values from [0, 255] to [-1, 1] using a Rescaling layer.
+    rescale = tf.keras.layers.experimental.preprocessing.Rescaling(1./127.5, offset= -1)
+
+    # Create the base model from the pre-trained model MobileNet V2
+    #IMG_SHAPE = IMG_SIZE + (3,)
+    base_model = tf.keras.applications.MobileNetV2(input_shape=img_shape,
+                                                include_top=False,
+                                                weights='imagenet')
+    #This feature extractor converts each 160x160x3 image into a 5x5x1280 block of features
+
+    base_model.trainable = False
+    #When you set layer.trainable = False, the BatchNormalization layer will run in inference mode
+
+    global_average_layer = tf.keras.layers.GlobalAveragePooling2D()
+    #average over the spatial 5x5 spatial locations o a single 1280-element vector per image (32, 5, 5, 1280) to (32, 1280)
+
+    prediction_layer = tf.keras.layers.Dense(numclasses, activation='softmax')
+
+    inputs = tf.keras.Input(shape=img_shape)
+    x = data_augmentation(inputs)
+    x = preprocess_input(x)
+    x = base_model(x, training=False)
+    x = global_average_layer(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
+    outputs = prediction_layer(x)
+    model = tf.keras.Model(inputs, outputs)
+
+    base_learning_rate = 0.0001
+    #lossfun=tf.keras.losses.BinaryCrossentropy(from_logits=True)
+    #optimizer=tf.keras.optimizers.RMSprop(lr=base_learning_rate/10)
+    model.compile(optimizer=tf.keras.optimizers.Adam(lr=base_learning_rate),
+                loss='sparse_categorical_crossentropy',
+                metrics=metrics)
+
+    return model
 
 def create_Xceptionmodel1(numclasses, img_shape, metrics=['accuracy']):
     pretrained_model = tf.keras.applications.Xception(input_shape=img_shape, include_top=False, weights='imagenet')

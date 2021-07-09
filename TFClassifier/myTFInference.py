@@ -53,9 +53,47 @@ def tfgetimagearray(path, img_height, img_width):
 
     # normalize to the range 0-1
     img_array /= 255.0
-    
+
     return img_array
 
+def pltgetonlineimagearray(url):
+    import matplotlib.pyplot as plt 
+    from urllib.request import urlopen
+
+    img = plt.imread(urlopen(url), format='JPG')
+    plt.imshow(img)
+
+def PILgetonlineimagearray(url, img_height, img_width):
+    from PIL import Image
+    from numpy import asarray
+
+    from urllib.request import urlopen
+    from PIL import Image
+
+    image = Image.open(urlopen(url))
+
+    # Size of the image in pixels (size of original image)
+    # (This is not mandatory)
+    width, height = image.size
+    image=image.resize((img_width, img_height)) #(width, height) https://pillow.readthedocs.io/en/stable/reference/Image.html
+
+    # imgpath=requests.get(url, stream=True).raw
+    # image = Image.open(imgpath)
+
+    pixels = asarray(image) #to numpy array
+    # confirm pixel range is 0-255
+    print('Data Type: %s' % pixels.dtype)
+    print('Min: %.3f, Max: %.3f' % (pixels.min(), pixels.max()))
+    # convert from integers to floats
+    pixels = pixels.astype('float32')
+    # normalize to the range 0-1
+    pixels /= 255.0
+    # confirm the normalization
+    print('Min: %.3f, Max: %.3f' % (pixels.min(), pixels.max()))
+
+    print('Data Type: %s' % pixels.dtype) #float32
+    
+    return pixels
 
 def inference(infermodel, img_np, class_names):
     img_array = tf.expand_dims(img_np, 0) # Create a batch (1, 224, 224, 3)
@@ -71,7 +109,12 @@ def inference(infermodel, img_np, class_names):
 def main():
 
     model=loadsavedmodel(args.model_path)
-    img_array = tfgetimagearray(args.data_path, args.img_height, args.img_width)
+
+    url='https://www.jacksonandperkins.com/images/xxl/v1780.jpg'#rose
+    img_array = PILgetonlineimagearray(url, args.img_height, args.img_width)
+
+    pltgetonlineimagearray(url)
+    #img_array = tfgetimagearray(args.data_path, args.img_height, args.img_width)
 
     class_names=['daisy', 'dandelion', 'roses', 'sunflowers', 'tulips']
     inference(model, img_array, class_names)

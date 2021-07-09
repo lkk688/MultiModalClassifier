@@ -115,7 +115,7 @@ def main():
     # train_data, test_data, num_train_examples, num_test_examples = loadtfds(
     #     args.tfds_dataname)
 
-    #Tune for performance
+    #Tune for performance, Use buffered prefetching to load images from disk without having I/O become blocking
     AUTOTUNE = tf.data.AUTOTUNE #tf.data.experimental.AUTOTUNE
     train_ds = train_ds.cache().shuffle(BUFFER_SIZE).prefetch(buffer_size=AUTOTUNE)
     val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
