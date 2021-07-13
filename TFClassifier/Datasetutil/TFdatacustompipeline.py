@@ -247,6 +247,7 @@ def processtfrecorddir(tfrecordpath='./outputs/TFrecord/'):
         print(labels_batch.shape)
         break
 
+    print(train_ds.class_names)
     return train_ds, val_ds, class_names, imageshape
 
 def loadTFcustomdataset(name, type, path='/home/lkk/.keras/datasets/flower_photos', img_height=180, img_width=180, batch_size=32):

@@ -218,3 +218,41 @@ def create_Xceptionmodel1(numclasses, img_shape, metrics=['accuracy']):
     )
 
     return model
+
+def create_ResNetmodel1(numclasses, img_shape, metrics=['accuracy']):
+    pretrained_model = tf.keras.applications.ResNet50V2(weights='imagenet', include_top=False, input_shape=img_shape) #https://www.tensorflow.org/api_docs/python/tf/keras/applications/ResNet50V2
+
+    # preprocess_input = tf.keras.Sequential([
+    #     tf.keras.layers.experimental.preprocessing.Rescaling(1./255, input_shape=(img_height, img_width, 3)),
+    #     #tf.keras.applications.ResNet50V2.preprocess_input,
+    # ])
+
+    data_augmentation = tf.keras.Sequential([
+        tf.keras.layers.experimental.preprocessing.RandomFlip('horizontal'),
+        tf.keras.layers.experimental.preprocessing.RandomRotation(0.2),
+    ])
+
+    
+    pretrained_model.trainable = True #False #True
+
+    header = tf.keras.Sequential([
+        tf.keras.layers.GlobalAveragePooling2D(),
+        #tf.keras.layers.Flatten(),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(numclasses, activation='softmax', dtype=tf.float32) # the float32 is needed on softmax layer when using mixed precision
+    ])
+
+    inputs = tf.keras.Input(shape=IMG_SHAPE)
+    x = data_augmentation(inputs)
+    x = preprocess_input(x)
+    x = pretrained_model(x, training=False)
+    outputs = header(x)
+    model = tf.keras.Model(inputs, outputs)
+
+    base_learning_rate = 0.0001
+    model.compile(optimizer=tf.keras.optimizers.Adam(lr=base_learning_rate),
+              #loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
+              loss=tf.losses.SparseCategoricalCrossentropy(from_logits=True),
+              metrics=metrics)
+
+    return model
