@@ -7,12 +7,14 @@ import PIL.Image
 import tensorflow as tf
 import pathlib
 import glob
+import matplotlib.pyplot as plt
 
 class_names = None
 IMG_height = 180
 IMG_width = 180
 BATCH_SIZE = 32
 ONE_HOT_encoding = False 
+AUTOTUNE = tf.data.AUTOTUNE #tf.data.experimental.AUTOTUNE
 
 def checkdataset(list_ds, itemcount=2):
     for f in list_ds.take(itemcount):
@@ -72,7 +74,6 @@ def data_augment(image, label):
 
 def plot25imagesfromds(dataset):
     image_batch, label_batch = next(iter(dataset))
-    import matplotlib.pyplot as plt
     fig = plt.figure(figsize=(10, 10))
     for i in range(25):
         ax = plt.subplot(5, 5, i + 1)
@@ -88,6 +89,13 @@ def plot25imagesfromds(dataset):
         if i>= BATCH_SIZE:
             break
     fig.savefig('./outputs/plot25imagesfromds.png')#
+
+def plotoneimagefromds(dataset):
+    image_batch, label_batch =next(iter(dataset))
+    fig = plt.figure(figsize=(10,10))
+    plt.imshow(image_batch)
+    plt.title(class_names[label_batch.numpy()])
+    fig.savefig('./outputs/plotoneimagefromds.png')#
 
 # Pixel values, which are 0-255, have to be normalized to the 0-1 range. Define this scale in a function.
 @tf.function
@@ -126,7 +134,6 @@ def processdir(data_dir_str='/home/lkk/.keras/datasets/flower_photos'):
 
     #Use Dataset.map to create a dataset of image, label pairs:
     # Set `num_parallel_calls` so multiple images are loaded/processed in parallel.
-    AUTOTUNE = tf.data.AUTOTUNE #tf.data.experimental.AUTOTUNE
     train_ds = train_ds.map(process_path, num_parallel_calls=AUTOTUNE)
     val_ds = val_ds.map(process_path, num_parallel_calls=AUTOTUNE)
 
@@ -137,7 +144,7 @@ def processdir(data_dir_str='/home/lkk/.keras/datasets/flower_photos'):
     train_ds = train_ds.batch(BATCH_SIZE)
     val_ds = val_ds.batch(BATCH_SIZE)
 
-    plot9imagesfromds(train_ds)#plot 0-255 value image
+    plot25imagesfromds(train_ds)#plot 0-255 value image
 
     train_ds=train_ds.map(scale, num_parallel_calls=AUTOTUNE)#scale to 0-1
     val_ds=val_ds.map(scale, num_parallel_calls=AUTOTUNE)
@@ -151,8 +158,96 @@ def processdir(data_dir_str='/home/lkk/.keras/datasets/flower_photos'):
 
     return train_ds, val_ds, class_names, imageshape
 
-def processtfrecorddir(path):
-    return 
+def read_tfrecord(example):
+    features = {
+        # tf.string means bytestring
+        "image": tf.io.FixedLenFeature([], tf.string),
+        "class": tf.io.FixedLenFeature([], tf.int64),  # shape [] means scalar
+    }
+    example = tf.io.parse_single_example(example, features)
+    image = tf.image.decode_jpeg(example['image'], channels=3)
+    # convert image to floats in [0, 1] range
+    image = tf.cast(image, tf.float32) / 255.0
+    # explicit size will be needed for TPU
+    IMAGE_SIZE=[IMG_height, IMG_width]
+    image = tf.reshape(image, [*IMAGE_SIZE, 3])
+    class_label = example['class']
+    return image, class_label
+
+
+def load_dataset(filenames):
+    # read from TFRecords. For optimal performance, read from multiple
+    # TFRecord files at once and set the option experimental_deterministic = False
+    # to allow order-altering optimizations.
+
+    option_no_order = tf.data.Options()
+    option_no_order.experimental_deterministic = False
+
+    dataset = tf.data.TFRecordDataset(filenames, num_parallel_reads=AUTOTUNE)
+    dataset = dataset.with_options(option_no_order)
+    dataset = dataset.map(read_tfrecord, num_parallel_calls=AUTOTUNE)
+    return dataset
+
+def get_batched_dataset(filenames, train=False):
+    dataset = load_dataset(filenames)
+    dataset = dataset.cache() # This dataset fits in RAM
+    if train:
+        # Best practices for Keras:
+        # Training dataset: repeat then batch
+        # Evaluation dataset: do not repeat
+        dataset = dataset.repeat()
+    dataset = dataset.batch(BATCH_SIZE)
+    dataset = dataset.prefetch(AUTOTUNE) # prefetch next batch while training (autotune prefetch buffer size)
+    # should shuffle too but this dataset was well shuffled on disk already
+    return dataset
+    # source: Dataset performance guide: https://www.tensorflow.org/guide/performance/datasets
+
+def processtfrecorddir(tfrecordpath='./outputs/TFrecord/'):
+    File_pattern = tfrecordpath+'/*.tfrec' #'gs://cmpelkk_imagetest/*.tfrec' #'gs://flowers-public/tfrecords-jpeg-192x192-2/*.tfrec'
+    
+    VALIDATION_SPLIT = 0.19
+    global class_names
+    class_names = ['daisy', 'dandelion', 'roses', 'sunflowers', 'tulips'] # do not change, maps to the labels in the data (folder names)
+
+    # splitting data files between training and validation
+    filenames = tf.io.gfile.glob(File_pattern)
+    print(len(filenames))
+
+    total_images=3670 #flowers folder 
+    split = int(len(filenames) * VALIDATION_SPLIT)
+    training_filenames = filenames[split:]
+    validation_filenames = filenames[:split]
+    print("Pattern matches {} data files. Splitting dataset into {} training files and {} validation files".format(len(filenames), len(training_filenames), len(validation_filenames)))
+    validation_steps = int(total_images // len(filenames) * len(validation_filenames)) // BATCH_SIZE
+    steps_per_epoch = int(total_images // len(filenames) * len(training_filenames)) // BATCH_SIZE
+    print("With a batch size of {}, there will be {} batches per training epoch and {} batch(es) per validation run.".format(BATCH_SIZE, steps_per_epoch, validation_steps))
+
+    train_ds=load_dataset(training_filenames)##scale to 0-1
+    val_ds=load_dataset(training_filenames)
+
+    #testimage, testlabel =next(iter(train_ds))
+    plotoneimagefromds(train_ds)
+    
+    # instantiate the datasets
+    #train_ds = get_batched_dataset(training_filenames, train=True)
+    #val_ds = get_batched_dataset(validation_filenames, train=False)
+
+    train_ds = train_ds.batch(BATCH_SIZE)
+    val_ds = val_ds.batch(BATCH_SIZE)
+
+    plot25imagesfromds(train_ds)
+
+    #train_ds=train_ds.map(scale, num_parallel_calls=AUTOTUNE)#scale to 0-1
+    #val_ds=val_ds.map(scale, num_parallel_calls=AUTOTUNE)
+
+    for image_batch, labels_batch in train_ds:
+        imagetensorshape = image_batch.get_shape().as_list()
+        imageshape=imagetensorshape[1:]
+        print(image_batch.shape)
+        print(labels_batch.shape)
+        break
+
+    return train_ds, val_ds, class_names, imageshape
 
 def loadTFcustomdataset(name, type, path='/home/lkk/.keras/datasets/flower_photos', img_height=180, img_width=180, batch_size=32):
     global BATCH_SIZE
@@ -161,6 +256,8 @@ def loadTFcustomdataset(name, type, path='/home/lkk/.keras/datasets/flower_photo
     IMG_height = img_height
     IMG_width = img_width
     if type=='customdatasetfromfolder':
-        train_ds, val_ds, class_names, imageshape = processdir(path)
+        #train_ds, val_ds, class_names, imageshape = processdir(path)
+        return processdir(path)
     elif type=='customtfrecordfile':
-        train_ds, val_ds, class_names, imageshape = processtfrecorddir(path)
+        #train_ds, val_ds, class_names, imageshape = processtfrecorddir(path)
+        return processtfrecorddir(path)

@@ -196,7 +196,7 @@ def create_mobilenetmodel2(numclasses, img_shape, metrics=['accuracy']):
     return model
 
 def create_Xceptionmodel1(numclasses, img_shape, metrics=['accuracy']):
-    pretrained_model = tf.keras.applications.Xception(input_shape=img_shape, include_top=False, weights='imagenet')
+    pretrained_model = tf.keras.applications.Xception(input_shape=img_shape, include_top=False, weights='imagenet')#Downloading data from https://storage.googleapis.com/tensorflow/keras-applications/xception/xception_weights_tf_dim_ordering_tf_kernels_notop.h5
     pretrained_model.trainable = True #False #True
 
     model = tf.keras.Sequential([

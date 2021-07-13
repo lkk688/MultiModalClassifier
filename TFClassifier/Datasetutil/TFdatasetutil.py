@@ -6,7 +6,7 @@ import numpy as np
 #import Datasetutil.Visutil as Visutil
 #from Datasetutil.Visutil import Visutil
 from TFClassifier.Datasetutil.Visutil import plot25images, plot9imagesfromtfdataset
-
+from TFClassifier.Datasetutil.TFdatacustompipeline import loadTFcustomdataset
 AUTO = tf.data.experimental.AUTOTUNE
 
 BATCH_SIZE = 32
@@ -29,6 +29,8 @@ def loadTFdataset(name, type, path='/home/lkk/.keras/datasets/flower_photos', im
         train_ds, val_ds = setBatchtoTFdataset(train_data, test_data, batch_size)
     elif type=='imagefolder':
         train_ds, val_ds, class_names, imageshape=loadimagefolderdataset(name, path, 'jpg', img_height, img_width, batch_size)
+    elif type.startswith('custom'):
+        train_ds, val_ds, class_names, imageshape=loadTFcustomdataset(name, type, path, img_height, img_width, batch_size)
     else:
         print('Data tpye not supported')
         exit()
@@ -264,6 +266,7 @@ def loadimagetrainvalfolderdataset(name, trainpath='/home/lkk/.keras/datasets/ca
 
     plot9imagesfromtfdataset(train_ds, class_names)
     return train_ds, val_ds, class_names, imageshape
+
 
 def test_sum():
     assert sum([1, 2, 3]) == 6, "Should be 6"
