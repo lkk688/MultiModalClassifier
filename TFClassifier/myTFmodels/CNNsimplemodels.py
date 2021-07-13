@@ -242,9 +242,9 @@ def create_ResNetmodel1(numclasses, img_shape, metrics=['accuracy']):
         tf.keras.layers.Dense(numclasses, activation='softmax', dtype=tf.float32) # the float32 is needed on softmax layer when using mixed precision
     ])
 
-    inputs = tf.keras.Input(shape=IMG_SHAPE)
+    inputs = tf.keras.Input(shape=img_shape)
     x = data_augmentation(inputs)
-    x = preprocess_input(x)
+    #x = preprocess_input(x)
     x = pretrained_model(x, training=False)
     outputs = header(x)
     model = tf.keras.Model(inputs, outputs)
