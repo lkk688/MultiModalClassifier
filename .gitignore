@@ -137,3 +137,5 @@ dmypy.json
 logs/
 .pdf
 outputs/
+.tflite
+.tfrec
