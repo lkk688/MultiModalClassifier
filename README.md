@@ -16,3 +16,5 @@ If you went to uninstall the package, perform the following step
 ```bash
 (venv38) lkk@cmpeengr276-All-Series:~/Developer/MyRepo/MultiModalClassifier$ python setup.py develop --uninstall
 ```
+
+# Tensorflow Lite
