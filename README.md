@@ -19,3 +19,4 @@ If you went to uninstall the package, perform the following step
 
 # Tensorflow Lite
 Tensorflow lite guide [link](https://www.tensorflow.org/lite/guide)
+[.\TFClassifier\exportTFlite.py]
