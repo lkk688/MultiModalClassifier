@@ -33,4 +33,5 @@ converter_int8.inference_output_type = tf.int8  # or tf.uint8
 ```bash
 floating_model = input_details[0]['dtype'] == np.float32
 ```
+  * When preparing the image data for the int8 model, we need to conver the uint8 (0-255) image data to int8 (-128-127) via loadimageint function
   
