@@ -139,3 +139,5 @@ logs/
 outputs/
 .tflite
 .tfrec
+converted_model_quant.tflite
+converted_model_quantint.tflite
