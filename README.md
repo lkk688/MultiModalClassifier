@@ -23,4 +23,5 @@ If you went to uninstall the package, perform the following step
   * testtfliteexport function exports the float format TFlite model
   * tflitequanexport function exports the TFlite model with post-training quantization, the model size can be reduced by
 ![image](https://user-images.githubusercontent.com/6676586/126202680-e2e53942-7951-418c-a461-99fd88d2c33e.png)
+  * The converted quantized model won't be compatible with integer only devices (such as 8-bit microcontrollers) and accelerators (such as the Coral Edge TPU) because the input and output still remain float in order to have the same interface as the original float only model.
   
