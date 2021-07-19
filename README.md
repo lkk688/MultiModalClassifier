@@ -24,4 +24,13 @@ If you went to uninstall the package, perform the following step
   * tflitequanexport function exports the TFlite model with post-training quantization, the model size can be reduced by
 ![image](https://user-images.githubusercontent.com/6676586/126202680-e2e53942-7951-418c-a461-99fd88d2c33e.png)
   * The converted quantized model won't be compatible with integer only devices (such as 8-bit microcontrollers) and accelerators (such as the Coral Edge TPU) because the input and output still remain float in order to have the same interface as the original float only model.
+* To ensure compatibility with integer only devices (such as 8-bit microcontrollers) and accelerators (such as the Coral Edge TPU), we can enforce full integer quantization for all ops including the input and output, add the following code into function tflitequanintexport
+```bash
+converter_int8.inference_input_type = tf.int8  # or tf.uint8
+converter_int8.inference_output_type = tf.int8  # or tf.uint8
+```
+  * The check of the floating model during inference will show false
+```bash
+floating_model = input_details[0]['dtype'] == np.float32
+```
   
