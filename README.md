@@ -18,5 +18,6 @@ If you went to uninstall the package, perform the following step
 ```
 
 # Tensorflow Lite
-Tensorflow lite guide [link](https://www.tensorflow.org/lite/guide)
-[exportTFlite](\TFClassifier\exportTFlite.py) file exports model to TFlite format.
+* Tensorflow lite guide [link](https://www.tensorflow.org/lite/guide)
+* [exportTFlite](\TFClassifier\exportTFlite.py) file exports model to TFlite format.
+* * testtfliteexport function exports the float format TFlite model
