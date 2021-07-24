@@ -43,7 +43,7 @@ parser.add_argument('--epochs', type=int, default=15,
 parser.add_argument('--GPU', type=bool, default=True,
                     help='use GPU')
 parser.add_argument('--TPU', type=bool, default=False,
-                    help='use GPU')
+                    help='use TPU')
 parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
                     help='use MIXED_PRECISION')
 
