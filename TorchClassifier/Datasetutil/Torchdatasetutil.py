@@ -29,7 +29,7 @@ def dataargumation():
     }
     return data_transforms
 
-def loadTorchdataset(name, type, path='/home/lkk/.keras/datasets/flower_photos', img_height=180, img_width=180, batch_size=32):
+def loadTorchdataset(name, type, path, img_height=180, img_width=180, batch_size=32):
     global BATCH_SIZE
     BATCH_SIZE=batch_size
     global IMG_height, IMG_width
@@ -39,8 +39,9 @@ def loadTorchdataset(name, type, path='/home/lkk/.keras/datasets/flower_photos',
     mydata_transforms = dataargumation()
 
     if type=='trainvalfolder':
-        #data_dir = 'data/hymenoptera_data'
-        image_datasets = {x: datasets.ImageFolder(os.path.join(path, x),
+        #data_dir = 'data/hymenoptera_data' ='/DataDisk1/ImageClassificationData/hymenoptera_data'
+        datapath=os.path.join(path, name)
+        image_datasets = {x: datasets.ImageFolder(os.path.join(datapath, x),
                                                 mydata_transforms[x])
                         for x in ['train', 'val']}
         dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,

@@ -31,15 +31,15 @@ device = None
 # import logger
 
 parser = configargparse.ArgParser(description='myTorchClassify')
-parser.add_argument('--data_name', type=str, default='flower',
+parser.add_argument('--data_name', type=str, default='hymenoptera_data',
                     help='data name: mnist, fashionMNIST, flower')
-parser.add_argument('--data_type', default='customtfrecordfile', choices=['tfds', 'kerasdataset', 'imagefolder', 'customtfrecordfile'],
+parser.add_argument('--data_type', default='trainvalfolder', choices=['trainvalfolder', 'kerasdataset', 'imagefolder', 'customtfrecordfile'],
                     help='the type of data') 
-parser.add_argument('--data_path', type=str, default='/home/lkk/Developer/MyRepo/MultiModalClassifier/outputs/TFrecord',
+parser.add_argument('--data_path', type=str, default='/DataDisk1/ImageClassificationData',
                     help='path to get data') 
-parser.add_argument('--img_height', type=int, default=180,
+parser.add_argument('--img_height', type=int, default=224,
                     help='resize to img height')
-parser.add_argument('--img_width', type=int, default=180,
+parser.add_argument('--img_width', type=int, default=224,
                     help='resize to img width')
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
@@ -96,7 +96,7 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
                 # forward
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(inputs)
+                    outputs = model(inputs) #shape 4,2
                     _, preds = torch.max(outputs, 1)
                     loss = criterion(outputs, labels)
 
@@ -163,12 +163,12 @@ def main():
     print("Torch Version: ", torch.__version__)
     print("Torchvision Version: ", torchvision.__version__)
 
-    TAG="0712"
+    TAG="0727"
     args.save_path=args.save_path+args.data_name+'_'+args.model_name+'_'+TAG
     print("Output path:", args.save_path)
 
     if args.GPU:
-        num_gpu = len(torch.cuda.device_count())
+        num_gpu = torch.cuda.device_count()
         print("Num GPUs:", num_gpu)
         # Which GPU Is The Current GPU?
         print(torch.cuda.current_device())
@@ -184,8 +184,8 @@ def main():
     else:
         print("No GPU and TPU enabled")
     
-    model_ft = models.resnet18(pretrained=True)
-    num_ftrs = model_ft.fc.in_features
+    model_ft = models.resnet18(pretrained=True) #Downloading: "https://download.pytorch.org/models/resnet18-5c106cde.pth" to /home/lkk/.cache/torch/hub/checkpoints/resnet18-5c106cde.pth
+    num_ftrs = model_ft.fc.in_features #512
     # Here the size of each output sample is set to 2.
     # Alternatively, it can be generalized to nn.Linear(num_ftrs, len(class_names)).
     model_ft.fc = nn.Linear(num_ftrs, 2)
@@ -200,6 +200,7 @@ def main():
     # Decay LR by a factor of 0.1 every 7 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
+    #Load dataset
     dataloaders, dataset_sizes, class_names = loadTorchdataset(args.data_name,args.data_type, args.data_path, args.img_height, args.img_width, args.batchsize)
 
     model_ft = train_model(model_ft, dataloaders, dataset_sizes, criterion, optimizer_ft, exp_lr_scheduler,
