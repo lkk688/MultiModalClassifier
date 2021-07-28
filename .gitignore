@@ -141,3 +141,4 @@ outputs/
 .tfrec
 converted_model_quant.tflite
 converted_model_quantint.tflite
+data/
