@@ -65,79 +65,66 @@ parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
 args = parser.parse_args()
 
 
-def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, scheduler, num_epochs=25):
-    since = time.time()
+def test_model(model, dataloaders, class_names, criterion, batch_size):
+    numclasses = len(class_names)
+    # track test loss
+    test_loss = 0.0
+    class_correct = list(0. for i in range(numclasses))
+    class_total = list(0. for i in range(numclasses))
 
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_acc = 0.0
+    model.eval()
 
-    for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
-        print('-' * 10)
+    if 'test' in dataloaders.keys():
+        test_loader=dataloaders['test']
+    else:
+        print("test dataset not available")
+        return
 
-        # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
-            if phase == 'train':
-                model.train()  # Set model to training mode
-            else:
-                model.eval()   # Set model to evaluate mode
+    # iterate over test data
+    bathindex = 0
+    for data, target in test_loader:
+        bathindex = bathindex +1
+        # move tensors to GPU if CUDA is available
+        # if train_on_gpu:
+        #     data, target = data.cuda(), target.cuda()
+        data = data.to(device)
+        target = target.to(device)
 
-            running_loss = 0.0
-            running_corrects = 0
+        # forward pass: compute predicted outputs by passing inputs to the model
+        output = model(data)
+        # calculate the batch loss
+        loss = criterion(output, target)
+        # update test loss 
+        test_loss += loss.item()*data.size(0)
+        # convert output probabilities to predicted class
+        _, pred = torch.max(output, 1)    
+        # compare predictions to true label
+        correct_tensor = pred.eq(target.data.view_as(pred))
+        train_on_gpu = torch.cuda.is_available()
+        correct = np.squeeze(correct_tensor.numpy()) if not train_on_gpu else np.squeeze(correct_tensor.cpu().numpy())
 
-            # Iterate over data.
-            for inputs, labels in dataloaders[phase]:
-                inputs = inputs.to(device)
-                labels = labels.to(device)
+        # calculate test accuracy for each object class
+        for i in range(batch_size):
+            if i<len(target.data):#the actual batch size of the last batch is smaller than the batch_size
+                label = target.data[i]
+                class_correct[label] += correct[i].item()
+                class_total[label] += 1
+    
+    # average test loss
+    test_loss = test_loss/len(test_loader.dataset)
+    print('Test Loss: {:.6f}\n'.format(test_loss))
 
-                # zero the parameter gradients, clear the gradients of all optimized variables
-                optimizer.zero_grad()
-
-                # forward
-                # track history if only in train
-                with torch.set_grad_enabled(phase == 'train'):
-                    #forward pass: compute predicted outputs by passing inputs to the model
-                    outputs = model(inputs) #shape 4,2; 32,10
-                    _, preds = torch.max(outputs, 1)
-
-                    # calculate the batch loss
-                    loss = criterion(outputs, labels)
-
-                    # backward + optimize only if in training phase
-                    if phase == 'train':
-                        # backward pass: compute gradient of the loss with respect to model parameters
-                        loss.backward()
-                        # perform a single optimization step (parameter update)
-                        optimizer.step()
-
-                # statistics
-                running_loss += loss.item() * inputs.size(0)#batch size
-                running_corrects += torch.sum(preds == labels.data)
-            if phase == 'train':
-                scheduler.step()
-
-            epoch_loss = running_loss / dataset_sizes[phase]
-            epoch_acc = running_corrects.double() / dataset_sizes[phase]
-
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                phase, epoch_loss, epoch_acc))
-
-            # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
-                best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
-
-        print()
-
-    time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(
-        time_elapsed // 60, time_elapsed % 60))
-    print('Best val Acc: {:4f}'.format(best_acc))
-
-    # load best model weights
-    model.load_state_dict(best_model_wts)
-    return model
-
+    for i in range(numclasses):
+        if class_total[i] > 0:
+            print('Test Accuracy of %5s: %2d%% (%2d/%2d)' % (
+                class_names[i], 100 * class_correct[i] / class_total[i],
+                np.sum(class_correct[i]), np.sum(class_total[i])))
+        else:
+            print('Test Accuracy of %5s: N/A (no training examples)' % (class_names[i]))
+    
+    print('\nTest Accuracy (Overall): %2d%% (%2d/%2d)' % (
+        100. * np.sum(class_correct) / np.sum(class_total),
+        np.sum(class_correct), np.sum(class_total)))
 
 def visualize_model(model, dataloaders, class_names, num_images=6):
     was_training = model.training
@@ -172,8 +159,6 @@ def main():
     TAG="0727"
     args.save_path=args.save_path+args.data_name+'_'+args.model_name+'_'+TAG
     print("Output path:", args.save_path)
-    if not os.path.exists(args.save_path):
-        os.makedirs(args.save_path)
 
     if args.GPU:
         num_gpu = torch.cuda.device_count()
@@ -198,25 +183,32 @@ def main():
     numclasses =len(class_names)
     model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape)
 
+    modelpath=os.path.join(args.save_path, 'model_best.pt')
+    model_ft.load_state_dict(torch.load(modelpath))
+
     model_ft = model_ft.to(device)
 
     criterion = nn.CrossEntropyLoss()
+    test_model(model_ft, dataloaders, class_names, criterion, args.batchsize)
 
-    # Observe that all parameters are being optimized
-    optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
+    if 'test' in dataloaders.keys():
+        test_loader=dataloaders['test']
+        # obtain one batch of test images
+        dataiter = iter(test_loader)
+        images, labels = dataiter.next()
+        images.numpy()
+        images = images.to(device)
 
-    # Decay LR by a factor of 0.1 every 7 epochs
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+        # get sample outputs
+        output = model_ft(images)#torch.Size([32, 10])
+        # convert output probabilities to predicted class
+        _, preds_tensor = torch.max(output, 1) #https://pytorch.org/docs/stable/generated/torch.max.html, dim=1, [32,10]->[32]
 
+        on_gpu = torch.cuda.is_available()
+        preds = np.squeeze(preds_tensor.numpy()) if not on_gpu else np.squeeze(preds_tensor.cpu().numpy()) #to numpy array list
+        #preds = np.squeeze(preds_tensor.cpu().numpy())
 
-    model_ft = train_model(model_ft, dataloaders, dataset_sizes, criterion, optimizer_ft, exp_lr_scheduler,
-                       num_epochs=args.epochs)
-
-    #save torch model
-    modelsavepath = os.path.join(args.save_path, 'model_best.pt')
-    torch.save(model_ft.state_dict(), modelsavepath)
-    
-    visualize_model(model_ft, dataloaders, class_names, num_images=6)
+        vistestresult(images, labels, preds, class_names, args.save_path)
 
 if __name__ == '__main__':
     main()

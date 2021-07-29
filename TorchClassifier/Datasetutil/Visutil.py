@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 def imshow(inp, title=None):
     """Imshow for Tensor."""
@@ -31,13 +32,14 @@ def visbatchimage(images, labels, classes):
         ax.set_title(classes[labels[idx]])
     fig.savefig('./outputs/torchonebatchimage.png')
 
-def vistestresult(images, labels, preds, classes):
+def vistestresult(images, labels, preds, classes, path='./outputs/'):
     #images.numpy()
 
     # plot the images in the batch, along with predicted and true labels
     fig = plt.figure(figsize=(25, 4))
     for idx in np.arange(20):
         ax = fig.add_subplot(2, 20/2, idx+1, xticks=[], yticks=[])
-        imshow(images.cpu()[idx])
+        imshowhelper(images.cpu()[idx])
         ax.set_title("{} ({})".format(classes[preds[idx]], classes[labels[idx]]), color=("green" if preds[idx]==labels[idx].item() else "red"))
-    fig.savefig('./outputs/torchtestresultimage.png')
+    figsavepath=os.path.join(path, 'torchtestresultimage.png')
+    fig.savefig(figsavepath)#'./outputs/torchtestresultimage.png')
