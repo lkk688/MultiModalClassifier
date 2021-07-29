@@ -10,10 +10,35 @@ import torch.nn.functional as F
 def createTorchCNNmodel(name, numclasses, img_shape):
     if name=='cnnmodel1':
         return create_cnnmodel1(numclasses, img_shape)
+    elif name=='vggmodel1':
+        return create_vggmodel1(numclasses, img_shape)
     elif name=='resnetmodel1':
         return create_resnetmodel1(numclasses, img_shape)
 
-class CNNNet1(nn.Module):
+def create_vggmodel1(numclasses, img_shape):
+    # Load the pretrained model from pytorch
+    vgg16 = models.vgg16(pretrained=True)
+
+    # print out the model structure
+    print(vgg16)
+    print(vgg16.classifier[6].in_features) #4096
+    print(vgg16.classifier[6].out_features) #1000
+
+    #Freeze training for all "features" layers
+    for param in vgg16.features.parameters():
+        param.requires_grad = False
+    
+    #Final Classifier Layer, Once you have the pre-trained feature extractor, you just need to modify and/or add to the final, fully-connected classifier layers. Replace the last layer in the vgg classifier group of layers.
+    n_inputs = vgg16.classifier[6].in_features
+
+    # add last linear layer (n_inputs -> 5 flower classes)
+    # new layers automatically have requires_grad = True
+    last_layer = nn.Linear(n_inputs, numclasses)
+
+    vgg16.classifier[6] = last_layer
+    
+
+class CNNNet1(nn.Module): #32*32 image input
     def __init__(self, numclasses):
         super(CNNNet1, self).__init__()
 
