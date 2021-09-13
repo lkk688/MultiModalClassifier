@@ -20,6 +20,7 @@ If you went to uninstall the package, perform the following step
 # Code organization
 * [DatasetTools](./DatasetTools): common tools and code scripts for processing datasets
 * [TFClassifier](./TFClassifier): Tensorflow-based classifier
+* * [myTFDistributedTrainerv2.py](): main training code
 * [TorchClassifier](./TorchClassifier): Pytorch-based classifier
 
 # Tensorflow Lite
