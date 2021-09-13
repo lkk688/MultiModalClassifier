@@ -17,6 +17,11 @@ If you went to uninstall the package, perform the following step
 (venv38) lkk@cmpeengr276-All-Series:~/Developer/MyRepo/MultiModalClassifier$ python setup.py develop --uninstall
 ```
 
+# Code organization
+* [DatasetTools](./DatasetTools): common tools and code scripts for processing datasets
+* [TFClassifier](./TFClassifier): Tensorflow-based classifier
+* [TorchClassifier](./TorchClassifier): Pytorch-based classifier
+
 # Tensorflow Lite
 * Tensorflow lite guide [link](https://www.tensorflow.org/lite/guide)
 * [exportTFlite](\TFClassifier\exportTFlite.py) file exports model to TFlite format.
