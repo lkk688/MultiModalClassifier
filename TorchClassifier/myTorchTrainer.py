@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import time
 import os
 import copy
+import random
 
 import PIL
 import PIL.Image
@@ -21,6 +22,7 @@ print(torch.__version__)
 from TorchClassifier.Datasetutil.Visutil import imshow, vistestresult
 from TorchClassifier.Datasetutil.Torchdatasetutil import loadTorchdataset
 from TorchClassifier.myTorchModels.TorchCNNmodels import createTorchCNNmodel
+from TorchClassifier.myTorchModels.TorchOptim import gettorchoptim
 # from TFClassifier.Datasetutil.TFdatasetutil import loadTFdataset #loadtfds, loadkerasdataset, loadimagefolderdataset
 # from TFClassifier.myTFmodels.CNNsimplemodels import createCNNsimplemodel
 # from TFClassifier.Datasetutil.Visutil import plot25images, plot9imagesfromtfdataset, plot_history
@@ -31,25 +33,27 @@ device = None
 # import logger
 
 parser = configargparse.ArgParser(description='myTorchClassify')
-parser.add_argument('--data_name', type=str, default='flower_photos',
+parser.add_argument('--data_name', type=str, default='MNIST',
                     help='data name: hymenoptera_data, CIFAR10, flower_photos')
-parser.add_argument('--data_type', default='traintestfolder', choices=['trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
+parser.add_argument('--data_type', default='torchvisiondataset', choices=['trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
                     help='the type of data') 
-parser.add_argument('--data_path', type=str, default='/Developer/MyRepo/ImageClassificationData',
-                    help='path to get data') 
-parser.add_argument('--img_height', type=int, default=224,
-                    help='resize to img height')
-parser.add_argument('--img_width', type=int, default=224,
-                    help='resize to img width')
+parser.add_argument('--data_path', type=str, default='./../ImageClassificationData',
+                    help='path to get data') #/Developer/MyRepo/ImageClassificationData
+parser.add_argument('--img_height', type=int, default=28,
+                    help='resize to img height, 224')
+parser.add_argument('--img_width', type=int, default=28,
+                    help='resize to img width, 224')
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='cnnmodel1', choices=['resnetmodel1', 'cnnmodel1'],
+parser.add_argument('--model_name', default='mlpmodel1', choices=['mlpmodel1', 'resnetmodel1', 'vggmodel1', 'cnnmodel1'],
                     help='the network')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
 parser.add_argument('--learningratename', default='warmupexpdecay', choices=['fixedstep', 'fixed', 'warmupexpdecay'],
-                    help='path to save the model')
+                    help='learning rate name')
+parser.add_argument('--optimizer', default='Adam', choices=['SGD', 'Adam'],
+                    help='select the optimizer')
 parser.add_argument('--batchsize', type=int, default=32,
                     help='batch size')
 parser.add_argument('--epochs', type=int, default=15,
@@ -60,6 +64,10 @@ parser.add_argument('--TPU', type=bool, default=False,
                     help='use TPU')
 parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
                     help='use MIXED_PRECISION')
+parser.add_argument('--TAG', default='0915',
+                    help='setup the experimental TAG to differentiate different running results')
+parser.add_argument('--reproducible', type=bool, default=False,
+                    help='get reproducible results we can set the random seed for Python, Numpy and PyTorch')
 
 
 args = parser.parse_args()
@@ -169,8 +177,17 @@ def main():
     print("Torch Version: ", torch.__version__)
     print("Torchvision Version: ", torchvision.__version__)
 
-    TAG="0727"
-    args.save_path=args.save_path+args.data_name+'_'+args.model_name+'_'+TAG
+    if args.reproducible==True:
+        #https://pytorch.org/docs/stable/notes/randomness.html
+        SEED = 1234
+        random.seed(SEED)
+        np.random.seed(SEED)
+        torch.manual_seed(SEED)
+        torch.cuda.manual_seed(SEED)
+        torch.backends.cudnn.deterministic = True
+
+    #TAG="0727"
+    args.save_path=args.save_path+args.data_name+'_'+args.model_name+'_'+args.TAG
     print("Output path:", args.save_path)
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
@@ -202,8 +219,10 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
 
-    # Observe that all parameters are being optimized
-    optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
+    # Observe that all parameters are being optimized, 
+    optimizer_ft=gettorchoptim(args.optimizer) #'Adam'
+    # optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
+    # optimizer_ft = optim.Adam(model_ft.parameters())
 
     # Decay LR by a factor of 0.1 every 7 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)

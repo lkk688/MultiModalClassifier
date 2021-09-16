@@ -5,7 +5,7 @@ import torchvision
 import numpy as np
 from torch.utils.data.sampler import SubsetRandomSampler
 
-from TorchClassifier.Datasetutil.Visutil import imshow, visbatchimage
+from TorchClassifier.Datasetutil.Visutil import imshow, visbatchimage, visimagelistingrid
 BATCH_SIZE = 32
 IMG_height = 180
 IMG_width = 180
@@ -13,7 +13,7 @@ IMG_width = 180
 # percentage of training set to use as validation
 valid_size = 0.2
 # number of subprocesses to use for data loading
-num_workers = 4  # 0
+num_workers = 0 #4  # 0
 
 
 def datanormalization():
@@ -26,12 +26,27 @@ def datanormalization():
 
     # convert data to a normalized torch.FloatTensor
     transform = transforms.Compose([
-        transforms.RandomHorizontalFlip(),  # randomly flip and rotate
-        transforms.RandomRotation(10),
-        transforms.ToTensor(),
+        #transforms.RandomHorizontalFlip(),  # randomly flip and rotate
+        #transforms.RandomRotation(10),
+        transforms.ToTensor(), #converts the image from a PIL image into a PyTorch tensor.
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     return transform
+
+def datatransforms(mean, std, imagesize=28, training=True):
+    if training==True:
+        datatransform = transforms.Compose([
+                    #transforms.RandomRotation(5, fill=(0,)),
+                    transforms.RandomCrop(imagesize, padding = 2),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean = [mean], std = [std])
+                                ])
+    else:
+        datatransform = transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize(mean = [mean], std = [std])
+                                     ])
+    return datatransform
 
 
 def dataargumation():
@@ -69,7 +84,7 @@ def loadTorchdataset(name, type, path, img_height=180, img_width=180, batch_size
 
     if type == 'trainvalfolder':
         # data_dir = 'data/hymenoptera_data' ='/DataDisk1/ImageClassificationData/hymenoptera_data'
-        datapath = os.path.join(path, name)
+        datapath = os.path.join(path, name) #data path name is constructed by the input data path and the dataset name
         image_datasets = {x: datasets.ImageFolder(os.path.join(datapath, x),
                                                   mydata_transforms[x])
                           for x in ['train', 'val']}
@@ -95,7 +110,7 @@ def loadTorchdataset(name, type, path, img_height=180, img_width=180, batch_size
     elif type == 'traintestfolder':
         return loadimagefoldertraintestdataset(name, path, split=['train', 'test'])
     elif type == 'torchvisiondataset':
-        return loadtorchvisiondataset(name)
+        return loadtorchvisiondataset(name, path)
 
 def loadimagefoldertraintestdataset(name, path, split=['train', 'test']):
     data_transform = datapreprocess()
@@ -167,54 +182,96 @@ def loadimagefolderdataset(name, path, split=['train', 'val']):
     return dataloaders, dataset_sizes, class_names, imageshape
 
 
-def loadtorchvisiondataset(name):
+def loadtorchvisiondataset(name, path):
+    datapath = os.path.join(path, name) #data path name is constructed by the input data path and the dataset name
+    if not os.path.exists(datapath):
+        os.makedirs(datapath)
+
     # choose the training and test datasets
     if name == 'CIFAR10':
-        train_data = datasets.CIFAR10('data', train=True,
+        train_data = datasets.CIFAR10(datapath, train=True,
                                       download=True, transform=datanormalization())  # Downloading https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz to data/cifar-10-python.tar.gz
         # Extracting data/cifar-10-python.tar.gz to data
-        test_data = datasets.CIFAR10('data', train=False,
+        test_data = datasets.CIFAR10(datapath, train=False,
                                      download=True, transform=datanormalization())
-        print(len(test_data))  # 10000
-        class_names = train_data.classes
-        # specify the image classes
-        # classes = ['airplane', 'automobile', 'bird', 'cat', 'deer',
-        #         'dog', 'frog', 'horse', 'ship', 'truck']
+    elif name == 'MNIST':
+        #
+        #automatically download the training set for the MNIST dataset and save it in a folder called datapath. It will create the folder if it does not exist.
+        train_data = datasets.MNIST(root = datapath, 
+                            train = True, 
+                            download = True)
+        #To calculate the means and standard deviations we get the actual data (the images) using the .data. attribute of our training data, convert them into floating point numbers and then use the built in mean and std functions to calculate the mean and standard deviation
+        mean = train_data.data.float().mean() / 255
+        std = train_data.data.float().std() / 255
+        print(f'Calculated mean: {mean}') #0.13066048920154572
+        print(f'Calculated std: {std}')#0.30810779333114624
 
-        # obtain training indices that will be used for validation
-        num_train = len(train_data)  # 50000
-        indices = list(range(num_train))
-        np.random.shuffle(indices)
-        split = int(np.floor(valid_size * num_train))
-        train_idx, valid_idx = indices[split:], indices[:split]
+        imagesize = IMG_height
+        train_data = datasets.MNIST(root = datapath, 
+                            train = True, 
+                            download = True, 
+                            transform = datatransforms(mean, std, imagesize, True))
 
-        # define samplers for obtaining training and validation batches
-        train_sampler = SubsetRandomSampler(train_idx)
-        valid_sampler = SubsetRandomSampler(valid_idx)
+        test_data = datasets.MNIST(root = datapath, 
+                                train = False, 
+                                download = True, 
+                                transform = datatransforms(mean, std, imagesize, False))
+        
+        N_IMAGES = 25
+        imageslist = [image for image, label in [train_data[i] for i in range(N_IMAGES)]] 
+        visimagelistingrid(imageslist)
 
-        # prepare data loaders (combine dataset and sampler)
-        train_loader = torch.utils.data.DataLoader(train_data, batch_size=BATCH_SIZE,
-                                                   sampler=train_sampler, num_workers=num_workers)
-        valid_loader = torch.utils.data.DataLoader(train_data, batch_size=BATCH_SIZE,
-                                                   sampler=valid_sampler, num_workers=num_workers)
-        test_loader = torch.utils.data.DataLoader(test_data, batch_size=BATCH_SIZE,
-                                                  num_workers=num_workers)
+    print(f'Number of training examples: {len(train_data)}')
+    print(f'Number of testing examples: {len(test_data)}')
+    #print(len(test_data))  # 10000
+    class_names = train_data.classes
+    # specify the image classes
+    # classes = ['airplane', 'automobile', 'bird', 'cat', 'deer',
+    #         'dog', 'frog', 'horse', 'ship', 'truck']
 
-        # obtain one batch of training images
-        dataiter = iter(train_loader)
-        images, labels = dataiter.next()
-        imagetensorshape = list(images.shape)  # torch.Size to python list
-        imageshape = imagetensorshape[1:]
+    # obtain training indices that will be used for validation
+    num_train = len(train_data)  # 50000
+    indices = list(range(num_train))
+    np.random.shuffle(indices)
+    split = int(np.floor(valid_size * num_train))
+    train_idx, valid_idx = indices[split:], indices[:split]
 
-        dataiter = iter(test_loader)
-        images, labels = dataiter.next()
-        imagetensorshape = list(images.shape)  # torch.Size to python list
+    # define samplers for obtaining training and validation batches
+    train_sampler = SubsetRandomSampler(train_idx)
+    valid_sampler = SubsetRandomSampler(valid_idx)
 
-        visbatchimage(images, labels, class_names)
+    # prepare data loaders (combine dataset and sampler)
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=BATCH_SIZE,
+                                                sampler=train_sampler, num_workers=num_workers)
+    valid_loader = torch.utils.data.DataLoader(train_data, batch_size=BATCH_SIZE,
+                                                sampler=valid_sampler, num_workers=num_workers)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=BATCH_SIZE,
+                                                num_workers=num_workers)
 
-        dataloaders = {'train': train_loader,
-                       'val': valid_loader, 'test': test_loader}
-        dataset_sizes = {'train': len(train_idx), 'val': len(
-            valid_idx), 'test': len(test_data)}
+    #The second option to do split for the validation data
+    # train_data, valid_data = torch.utils.data.random_split(train_data, 
+    #                                        [int(num_train*0.9), int(num_train*0.1)])
+    # train_iterator = torch.utils.data.DataLoader(train_data, 
+    #                              shuffle = True, 
+    #                              batch_size = BATCH_SIZE)
+    # valid_iterator = torch.utils.data.DataLoader(valid_data, 
+    #                                 batch_size = BATCH_SIZE)
 
-        return dataloaders, dataset_sizes, class_names, imageshape
+    # obtain one batch of training images
+    dataiter = iter(train_loader)
+    images, labels = dataiter.next()
+    imagetensorshape = list(images.shape)  # torch.Size to python list
+    imageshape = imagetensorshape[1:]
+
+    dataiter = iter(test_loader)
+    images, labels = dataiter.next()
+    imagetensorshape = list(images.shape)  # torch.Size to python list
+
+    visbatchimage(images, labels, class_names)
+
+    dataloaders = {'train': train_loader,
+                    'val': valid_loader, 'test': test_loader}
+    dataset_sizes = {'train': len(train_idx), 'val': len(
+        valid_idx), 'test': len(test_data)}
+
+    return dataloaders, dataset_sizes, class_names, imageshape

@@ -10,6 +10,8 @@ import torch.nn.functional as F
 def createTorchCNNmodel(name, numclasses, img_shape):
     if name=='cnnmodel1':
         return create_cnnmodel1(numclasses, img_shape)
+    elif name=='mlpmodel1':
+        return create_mlpmodel1(numclasses, img_shape)
     elif name=='vggmodel1':
         return create_vggmodel1(numclasses, img_shape)
     elif name=='resnetmodel1':
@@ -92,6 +94,44 @@ def create_cnnmodel1(numclasses, img_shape):
     print(model)
     return model
 
+
+class MLP(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super().__init__()
+        #three linear layers
+        #take the input batch of images and flatten them so they can be passed into the linear layers
+        self.input_fc = nn.Linear(input_dim, 250) #hidden dimensions of 250 elements
+        self.hidden_fc = nn.Linear(250, 100) #hidden dimensions of 100 elements
+        self.output_fc = nn.Linear(100, output_dim)
+        
+    def forward(self, x):
+        batch_size = x.shape[0] #x = [batch size, height, width]
+
+        x = x.view(batch_size, -1)
+        #x = [batch size, height * width]
+        
+        h_1 = F.relu(self.input_fc(x))
+        #h_1 = [batch size, 250]
+
+        h_2 = F.relu(self.hidden_fc(h_1))
+        #h_2 = [batch size, 100]
+
+        y_pred = self.output_fc(h_2)
+        #y_pred = [batch size, output dim]
+        
+        return y_pred, h_2
+
+def create_mlpmodel1(numclasses, img_shape):
+    
+    INPUT_DIM = img_shape[1]*img_shape[2]#28 * 28
+    OUTPUT_DIM = numclasses
+    model = MLP(INPUT_DIM, OUTPUT_DIM)
+    print(model)
+
+    for p in model.parameters():
+        if p.requires_grad:
+            print("trainable parameters:", p.numel()) #PyTorch torch.numel() method returns the total number of elements in the input tensor.
+    return model
 
 def create_resnetmodel1(numclasses, img_shape):
     model_ft = models.resnet18(pretrained=True) #Downloading: "https://download.pytorch.org/models/resnet18-5c106cde.pth" to /home/lkk/.cache/torch/hub/checkpoints/resnet18-5c106cde.pth
