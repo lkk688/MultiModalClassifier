@@ -12,6 +12,8 @@ def createTorchCNNmodel(name, numclasses, img_shape):
         return create_cnnmodel1(numclasses, img_shape)
     elif name=='mlpmodel1':
         return create_mlpmodel1(numclasses, img_shape)
+    elif name=='lenet':
+        return create_lenet(numclasses, img_shape)
     elif name=='vggmodel1':
         return create_vggmodel1(numclasses, img_shape)
     elif name=='resnetmodel1':
@@ -95,7 +97,7 @@ def create_cnnmodel1(numclasses, img_shape):
     return model
 
 
-class MLP(nn.Module):
+class MLP(nn.Module): #for MNIST dataset
     def __init__(self, input_dim, output_dim):
         super().__init__()
         #three linear layers
@@ -122,7 +124,7 @@ class MLP(nn.Module):
         return y_pred, h_2
 
 def create_mlpmodel1(numclasses, img_shape):
-    
+    #for MNIST dataset
     INPUT_DIM = img_shape[1]*img_shape[2]#28 * 28
     OUTPUT_DIM = numclasses
     model = MLP(INPUT_DIM, OUTPUT_DIM)
@@ -131,6 +133,81 @@ def create_mlpmodel1(numclasses, img_shape):
     for p in model.parameters():
         if p.requires_grad:
             print("trainable parameters:", p.numel()) #PyTorch torch.numel() method returns the total number of elements in the input tensor.
+    return model
+
+
+class LeNet(nn.Module):#for 28*28 MNIST dataset
+    def __init__(self, output_dim):
+        super().__init__()
+
+        self.conv1 = nn.Conv2d(in_channels = 1, 
+                               out_channels = 6, 
+                               kernel_size = 5)
+        
+        self.conv2 = nn.Conv2d(in_channels = 6, 
+                               out_channels = 16, 
+                               kernel_size = 5)
+        
+        self.fc_1 = nn.Linear(16 * 4 * 4, 120)
+        self.fc_2 = nn.Linear(120, 84)
+        self.fc_3 = nn.Linear(84, output_dim)
+
+    def forward(self, x):
+
+        #x = [batch size, 1, 28, 28]
+        
+        x = self.conv1(x)
+        
+        #x = [batch size, 6, 24, 24]
+        
+        x = F.max_pool2d(x, kernel_size = 2)
+        
+        #x = [batch size, 6, 12, 12]
+        
+        x = F.relu(x)
+        
+        x = self.conv2(x)
+        
+        #x = [batch size, 16, 8, 8]
+        
+        x = F.max_pool2d(x, kernel_size = 2)
+        
+        #x = [batch size, 16, 4, 4]
+        
+        x = F.relu(x)
+        
+        x = x.view(x.shape[0], -1)
+        
+        #x = [batch size, 16*4*4 = 256]
+        
+        h = x
+        
+        x = self.fc_1(x)
+        
+        #x = [batch size, 120]
+        
+        x = F.relu(x)
+
+        x = self.fc_2(x)
+        
+        #x = batch size, 84]
+        
+        x = F.relu(x)
+
+        x = self.fc_3(x)
+
+        #x = [batch size, output dim]
+        
+        return x, h
+
+def create_lenet(numclasses, img_shape):
+    #for MNIST dataset
+    OUTPUT_DIM = numclasses
+    model = LeNet(OUTPUT_DIM)
+    print(model)
+
+    num_trainparameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f'The model has {num_trainparameters} trainable parameters')
     return model
 
 def create_resnetmodel1(numclasses, img_shape):

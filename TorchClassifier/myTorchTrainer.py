@@ -46,7 +46,7 @@ parser.add_argument('--img_width', type=int, default=28,
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='mlpmodel1', choices=['mlpmodel1', 'resnetmodel1', 'vggmodel1', 'cnnmodel1'],
+parser.add_argument('--model_name', default='lenet', choices=['mlpmodel1', 'lenet', 'resnetmodel1', 'vggmodel1', 'cnnmodel1'],
                     help='the network')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
@@ -106,7 +106,9 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
                 with torch.set_grad_enabled(phase == 'train'):
                     #forward pass: compute predicted outputs by passing inputs to the model
                     outputs = model(inputs) #shape 4,2; 32,10
-                    _, preds = torch.max(outputs, 1)
+                    if type(outputs) is tuple: #model may output multiple tensors as tuple
+                        outputs, _ = outputs
+                    _, preds = torch.max(outputs, 1)#outputs size [32, 10]
 
                     # calculate the batch loss
                     loss = criterion(outputs, labels)
@@ -159,6 +161,8 @@ def visualize_model(model, dataloaders, class_names, num_images=6):
             labels = labels.to(device)
 
             outputs = model(inputs)
+            if type(outputs) is tuple: #model may output multiple tensors as tuple
+                outputs, _ = outputs
             _, preds = torch.max(outputs, 1)
 
             for j in range(inputs.size()[0]):
@@ -215,12 +219,13 @@ def main():
     numclasses =len(class_names)
     model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape)
 
-    model_ft = model_ft.to(device)
-
     criterion = nn.CrossEntropyLoss()
 
+    model_ft = model_ft.to(device)
+    criterion = criterion.to(device)
+
     # Observe that all parameters are being optimized, 
-    optimizer_ft=gettorchoptim(args.optimizer) #'Adam'
+    optimizer_ft=gettorchoptim(args.optimizer, model_ft) #'Adam'
     # optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
     # optimizer_ft = optim.Adam(model_ft.parameters())
 
@@ -236,6 +241,10 @@ def main():
     torch.save(model_ft.state_dict(), modelsavepath)
     
     visualize_model(model_ft, dataloaders, class_names, num_images=6)
+
+
+
+
 
 if __name__ == '__main__':
     main()
