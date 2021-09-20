@@ -48,22 +48,63 @@ def datatransforms(mean, std, imagesize=28, training=True):
                                      ])
     return datatransform
 
+def imagenetdatatransforms(training=True, imagesize=224):
+    #All pre-trained models expect input images normalized in the same way, i.e. mini-batches of 3-channel RGB images of shape (3 x H x W), where H and W are expected to be at least 224. 
+    # The images have to be loaded in to a range of [0, 1] and then normalized using mean = [0.485, 0.456, 0.406] and std = [0.229, 0.224, 0.225].
+    pretrained_means = [0.485, 0.456, 0.406]
+    pretrained_stds= [0.229, 0.224, 0.225]
+    if training==True:
+        datatransform = transforms.Compose([
+                    transforms.Resize(imagesize),
+                    transforms.RandomRotation(5),
+                    transforms.RandomHorizontalFlip(0.5),
+                    transforms.RandomCrop(imagesize, padding = 10),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean = pretrained_means, std = pretrained_stds)
+                                ])
+    else:
+        datatransform = transforms.Compose([
+                    transforms.Resize(imagesize),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean = pretrained_means, std = pretrained_stds)
+                                     ])
+    return datatransform
+
+
+# def dataargumation():
+#     # Data augmentation and normalization for training
+#     # Just normalization for validation
+#     data_transforms = {
+#         'train': transforms.Compose([
+#             transforms.RandomResizedCrop(224),
+#             transforms.RandomHorizontalFlip(),
+#             transforms.ToTensor(),
+#             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+#         ]),
+#         'val': transforms.Compose([
+#             transforms.Resize(256),
+#             transforms.CenterCrop(224),
+#             transforms.ToTensor(),
+#             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+#         ]),
+#     }
+#     return data_transforms
 
 def dataargumation():
     # Data augmentation and normalization for training
     # Just normalization for validation
+    imagesize=IMG_height
     data_transforms = {
         'train': transforms.Compose([
-            transforms.RandomResizedCrop(224),
+            transforms.RandomResizedCrop(imagesize),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) #Imagenet mean and std
         ]),
         'val': transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
+            transforms.Resize(imagesize),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) #Imagenet mean and std
         ]),
     }
     return data_transforms

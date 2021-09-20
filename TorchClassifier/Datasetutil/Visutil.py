@@ -44,19 +44,31 @@ def vistestresult(images, labels, preds, classes, path='./outputs/'):
     figsavepath=os.path.join(path, 'torchtestresultimage.png')
     fig.savefig(figsavepath)#'./outputs/torchtestresultimage.png')
 
-def visimagelistingrid(images,path='./outputs/'): #images is a list
+
+def normalize_image(image):
+    image_min = image.min()
+    image_max = image.max()
+    image.clamp_(min = image_min, max = image_max)
+    image.add_(-image_min).div_(image_max - image_min + 1e-5)
+    return image
+
+def visimagelistingrid(images,path='./outputs/', normalize = False): #images is a list
     n_images = len(images)
 
     rows = int(np.sqrt(n_images))
     cols = int(np.sqrt(n_images))
 
-    fig = plt.figure()
+    fig = plt.figure(figsize = (10, 10)) #plt.figure()
     for i in range(rows*cols):
         ax = fig.add_subplot(rows, cols, i+1)
-        if(len(images[i].shape) == 3):
-            imgdata=np.squeeze(images[i])
-        elif(len(images[i].shape) == 2):
-            imgdata=images[i]
+        image = images[i]
+        if normalize:
+            image = normalize_image(image)
+        if(len(image.shape) == 3):
+            #imgdata=np.squeeze(image) # works for grey image
+            imgdata=image.permute(1, 2, 0) #put the channels as the last dimension
+        elif(len(image.shape) == 2):
+            imgdata=image
         else:
             print("Higher dimensional data")
         ax.imshow(imgdata.cpu().numpy())#, cmap = 'bone')
