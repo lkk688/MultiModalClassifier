@@ -47,7 +47,7 @@ parser.add_argument('--img_width', type=int, default=28,
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='alexnet', choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'vggmodel1', 'vggcustom', 'cnnmodel1'],
+parser.add_argument('--model_name', default='alexnet', choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1'],
                     help='the network')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
