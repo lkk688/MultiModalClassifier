@@ -52,7 +52,7 @@ parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch
                     help='Model Name, default: Pytorch.')
 parser.add_argument('--learningratename', default='warmupexpdecay', choices=['fixedstep', 'fixed', 'warmupexpdecay'],
                     help='learning rate name')
-parser.add_argument('--optimizer', default='Adam', choices=['SGD', 'Adam'],
+parser.add_argument('--optimizer', default='Adam', choices=['SGD', 'Adam', 'adamresnetcustomrate'],
                     help='select the optimizer')
 parser.add_argument('--batchsize', type=int, default=32,
                     help='batch size')

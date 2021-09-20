@@ -7,6 +7,8 @@ import torchvision
 from torchvision import datasets, models, transforms
 import torch.nn.functional as F
 
+from TorchClassifier.myTorchModels.CustomResNet import setupCustomResNet
+
 def createTorchCNNmodel(name, numclasses, img_shape):
     if name=='cnnmodel1':
         return create_cnnmodel1(numclasses, img_shape)
@@ -22,6 +24,8 @@ def createTorchCNNmodel(name, numclasses, img_shape):
         return create_vggcustommodel(numclasses, img_shape)
     elif name=='resnetmodel1':
         return create_resnetmodel1(numclasses, img_shape)
+    elif name=='customresnet':
+        return setupCustomResNet(numclasses, 'resnet50')
 
 def create_vggmodel1(numclasses, img_shape):
     # Load the pretrained model from pytorch
