@@ -233,7 +233,7 @@ def main():
     # # Decay LR by a factor of 0.1 every 7 epochs
     # exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
     STEPS_PER_EPOCH = len(dataloaders['train'])
-    lr_scheduler = setupLearningratescheduler(name, optimizer_ft, args.epochs, STEPS_PER_EPOCH)
+    lr_scheduler = setupLearningratescheduler(args.learningratename, optimizer_ft, args.epochs, STEPS_PER_EPOCH)
 
     model_ft = train_model(model_ft, dataloaders, dataset_sizes, criterion, optimizer_ft, lr_scheduler,
                        num_epochs=args.epochs)
