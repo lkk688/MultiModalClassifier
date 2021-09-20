@@ -23,6 +23,7 @@ from TorchClassifier.Datasetutil.Visutil import imshow, vistestresult
 from TorchClassifier.Datasetutil.Torchdatasetutil import loadTorchdataset
 from TorchClassifier.myTorchModels.TorchCNNmodels import createTorchCNNmodel
 from TorchClassifier.myTorchModels.TorchOptim import gettorchoptim
+from TorchClassifier.myTorchModels.TorchLearningratescheduler import setupLearningratescheduler
 # from TFClassifier.Datasetutil.TFdatasetutil import loadTFdataset #loadtfds, loadkerasdataset, loadimagefolderdataset
 # from TFClassifier.myTFmodels.CNNsimplemodels import createCNNsimplemodel
 # from TFClassifier.Datasetutil.Visutil import plot25images, plot9imagesfromtfdataset, plot_history
@@ -50,7 +51,7 @@ parser.add_argument('--model_name', default='alexnet', choices=['mlpmodel1', 'le
                     help='the network')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
-parser.add_argument('--learningratename', default='warmupexpdecay', choices=['fixedstep', 'fixed', 'warmupexpdecay'],
+parser.add_argument('--learningratename', default='StepLR', choices=['StepLR', 'ExponentialLR', 'MultiStepLR', 'OneCycleLR'],
                     help='learning rate name')
 parser.add_argument('--optimizer', default='Adam', choices=['SGD', 'Adam', 'adamresnetcustomrate'],
                     help='select the optimizer')
@@ -60,10 +61,10 @@ parser.add_argument('--epochs', type=int, default=15,
                     help='epochs')
 parser.add_argument('--GPU', type=bool, default=True,
                     help='use GPU')
-parser.add_argument('--TPU', type=bool, default=False,
-                    help='use TPU')
-parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
-                    help='use MIXED_PRECISION')
+# parser.add_argument('--TPU', type=bool, default=False,
+#                     help='use TPU')
+# parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
+#                     help='use MIXED_PRECISION')
 parser.add_argument('--TAG', default='0915',
                     help='setup the experimental TAG to differentiate different running results')
 parser.add_argument('--reproducible', type=bool, default=False,
@@ -229,11 +230,12 @@ def main():
     # optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
     # optimizer_ft = optim.Adam(model_ft.parameters())
 
-    # Decay LR by a factor of 0.1 every 7 epochs
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+    # # Decay LR by a factor of 0.1 every 7 epochs
+    # exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+    STEPS_PER_EPOCH = len(dataloaders['train'])
+    lr_scheduler = setupLearningratescheduler(name, optimizer_ft, args.epochs, STEPS_PER_EPOCH)
 
-
-    model_ft = train_model(model_ft, dataloaders, dataset_sizes, criterion, optimizer_ft, exp_lr_scheduler,
+    model_ft = train_model(model_ft, dataloaders, dataset_sizes, criterion, optimizer_ft, lr_scheduler,
                        num_epochs=args.epochs)
 
     #save torch model
