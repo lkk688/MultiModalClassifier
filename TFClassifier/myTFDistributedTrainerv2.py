@@ -19,18 +19,18 @@ model = None
 parser = configargparse.ArgParser(description='myTFDistributedClassify')
 parser.add_argument('--data_name', type=str, default='flower',
                     help='data name: mnist, fashionMNIST, flower')
-parser.add_argument('--data_type', default='customtfrecordfile', choices=['tfds', 'kerasdataset', 'imagefolder', 'customtfrecordfile'],
+parser.add_argument('--data_type', default='imagefolder', choices=['tfds', 'kerasdataset', 'imagefolder', 'customtfrecordfile'],
                     help='the type of data')  # gs://cmpelkk_imagetest/*.tfrec
-parser.add_argument('--data_path', type=str, default='/home/lkk/Developer/MyRepo/MultiModalClassifier/outputs/TFrecord',
+parser.add_argument('--data_path', type=str, default='~/.keras/datasets/flower_photos/',
                     help='path to get data') #'/home/lkk/.keras/datasets/flower_photos'
 parser.add_argument('--img_height', type=int, default=180,
-                    help='resize to img height')
+                    help='resize to img height, default 180')
 parser.add_argument('--img_width', type=int, default=180,
-                    help='resize to img width')
+                    help='resize to img width, default 180')
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='xceptionmodel1', choices=['cnnsimple1', 'cnnsimple2', 'cnnsimple3', 'cnnsimple4','mobilenetmodel1', 'xceptionmodel1'],
+parser.add_argument('--model_name', default='cnnsimple1', choices=['cnnsimple1', 'cnnsimple2', 'cnnsimple3', 'cnnsimple4','mobilenetmodel1', 'xceptionmodel1'],
                     help='the network')
 parser.add_argument('--arch', default='Tensorflow', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Tensorflow.')
@@ -62,7 +62,7 @@ def main():
     print("Tensorflow Version: ", tf.__version__)
     print("Keras Version: ", tf.keras.__version__)
 
-    TAG="0712"
+    TAG="0629"
     args.save_path=args.save_path+args.data_name+'_'+args.model_name+'_'+TAG
     print("Output path:", args.save_path)
 

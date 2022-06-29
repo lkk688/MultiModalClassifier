@@ -4,6 +4,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+def checkfolder(folderpath):
+    isExist = os.path.exists(folderpath)
+    if not isExist:
+        # Create a new directory because it does not exist 
+        os.makedirs(folderpath)
+        print("The new directory is created!")
 
 def plot25images(images, labels, class_names):
     fig = plt.figure(figsize=(10,10))
@@ -19,6 +25,7 @@ def plot25images(images, labels, class_names):
         #print(labels[i])
         plt.xlabel(class_names[labels[i]])
     plt.show()
+    checkfolder('./outputs')
     fig.savefig('./outputs/25images.png')
 
 def plot9imagesfromtfdataset(image_ds, class_names):
@@ -35,6 +42,7 @@ def plot9imagesfromtfdataset(image_ds, class_names):
             plt.imshow(imgnp)
             plt.title(class_names[labels[i]])
             plt.axis("off")
+    checkfolder('./outputs')
     fig.savefig('./outputs/9images.png')
 
 
