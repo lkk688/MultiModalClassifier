@@ -7,11 +7,14 @@ import torch.optim as optim
 import time
 import os
 
-MACHINENAME='AlienwareX51'#'HPC'
+
+os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
+
+MACHINENAME='HPC'#'AlienwareX51'#'HPC'
 
 UseTorchDataParallel=False #True
 UseTorchDistributedDataParallel=True
-MIXEDPRECISION=True
+MIXEDPRECISION=False
 
 # setting the environment variable
 if MACHINENAME=='HPC':
@@ -40,11 +43,11 @@ def create_data_loader_cifar10():
     if UseTorchDistributedDataParallel:
         train_sampler = DistributedSampler(dataset=trainset, shuffle=True)                                                  
         trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
-                                            sampler=train_sampler, num_workers=10, pin_memory=True)
+                                            sampler=train_sampler, num_workers=0, pin_memory=True)
         
         test_sampler =DistributedSampler(dataset=testset, shuffle=True)                                         
         testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
-                                            shuffle=False, sampler=test_sampler, num_workers=10)
+                                            shuffle=False, sampler=test_sampler, num_workers=0)
     else:
         trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
                                               shuffle=True, num_workers=10, pin_memory=True)
@@ -120,7 +123,7 @@ def init_distributed():
     world_size = int(os.environ['WORLD_SIZE'])
     local_rank = int(os.environ['LOCAL_RANK'])
     dist.init_process_group(
-            backend="nccl",
+            backend="nccl", #nccl,gloo (works in HPC)
             init_method=dist_url,
             world_size=world_size,
             rank=rank)
@@ -168,7 +171,7 @@ if __name__ == '__main__':
     net = torchvision.models.resnet50(True)#download to /home/lkk/.cache/torch/hub/checkpoints
 
     if UseTorchDataParallel:
-        os.environ['CUDA_VISIBLE_DEVICES'] = "0,1"
+        os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2,3"
         if torch.cuda.device_count() > 1:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
             # Batch size should be divisible by number of GPUs
@@ -203,6 +206,6 @@ if __name__ == '__main__':
         print("In the main process")
 
 #Launch script using torch.distributed.launch or torch.run
-#python -m torch.distributed.launch --nproc_per_node=2 ./TorchClassifier/TorchDDPClassifier.py
+#python -m torch.distributed.launch --nproc_per_node=4 ./TorchClassifier/TorchDDPClassifier.py
 
 #ref: https://theaisummer.com/distributed-training-pytorch/
