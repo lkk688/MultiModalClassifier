@@ -184,7 +184,7 @@ def loadimagefoldertraintestdataset(name, path, split=['train', 'test']):
 
     # obtain one batch of training images
     dataiter = iter(train_loader)
-    images, labels = dataiter.next()
+    images, labels = next(dataiter)#dataiter.next()
     imagetensorshape = list(images.shape)  # torch.Size to python list
     imageshape = imagetensorshape[1:]
 
@@ -300,12 +300,12 @@ def loadtorchvisiondataset(name, path):
 
     # obtain one batch of training images
     dataiter = iter(train_loader)
-    images, labels = dataiter.next()
+    images, labels = next(dataiter)#dataiter.next()
     imagetensorshape = list(images.shape)  # torch.Size to python list
     imageshape = imagetensorshape[1:]
 
     dataiter = iter(test_loader)
-    images, labels = dataiter.next()
+    images, labels =next(dataiter)#dataiter.next()
     imagetensorshape = list(images.shape)  # torch.Size to python list
 
     visbatchimage(images, labels, class_names)

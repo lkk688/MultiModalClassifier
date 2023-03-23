@@ -31,11 +31,11 @@ device = None
 # import logger
 
 parser = configargparse.ArgParser(description='myTorchClassify')
-parser.add_argument('--data_name', type=str, default='MNIST',
-                    help='data name: hymenoptera_data, CIFAR10, flower_photos')
+parser.add_argument('--data_name', type=str, default='CIFAR10',
+                    help='data name: MNIST, hymenoptera_data, CIFAR10, flower_photos')
 parser.add_argument('--data_type', default='torchvisiondataset', choices=['trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
                     help='the type of data') 
-parser.add_argument('--data_path', type=str, default='./../ImageClassificationData',
+parser.add_argument('--data_path', type=str, default='E:\Dataset',
                     help='path to get data') #/Developer/MyRepo/ImageClassificationData
 parser.add_argument('--img_height', type=int, default=28,
                     help='resize to img height, 224')
@@ -44,7 +44,7 @@ parser.add_argument('--img_width', type=int, default=28,
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='lenet', choices=['mlpmodel1', 'lenet', 'resnetmodel1', 'vggmodel1', 'cnnmodel1'],
+parser.add_argument('--model_name', default='cnnmodel1', choices=['mlpmodel1', 'lenet', 'resnetmodel1', 'vggmodel1', 'cnnmodel1'],
                     help='the network')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
@@ -62,7 +62,7 @@ parser.add_argument('--TPU', type=bool, default=False,
                     help='use TPU')
 parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
                     help='use MIXED_PRECISION')
-parser.add_argument('--TAG', default='0915',
+parser.add_argument('--TAG', default='0323',
                     help='setup the experimental TAG to differentiate different running results')
 parser.add_argument('--reproducible', type=bool, default=False,
                     help='get reproducible results we can set the random seed for Python, Numpy and PyTorch')
@@ -206,9 +206,12 @@ def main():
         test_loader=dataloaders['test']
         # obtain one batch of test images
         dataiter = iter(test_loader)
-        images, labels = dataiter.next()
+        images, labels = next(dataiter)#.next()
         images.numpy()
         images = images.to(device)
+
+        imagetensorshape = list(images.shape)  # torch.Size to python list
+        imageshape = imagetensorshape[1:]
 
         # get sample outputs
         outputs = model_ft(images)#torch.Size([32, 10])
@@ -258,21 +261,24 @@ def plot_most_incorrect(incorrect, n_images):
         image, true_label, probs = incorrect[i]
         true_prob = probs[true_label]
         incorrect_prob, incorrect_label = torch.max(probs, dim = 0)
-        ax.imshow(image.view(28, 28).cpu().numpy(), cmap = 'bone')
+        #ax.imshow(image.view(imageshape[1],imageshape[2]).cpu().numpy(), cmap = 'bone')
+        img=image.permute(1,2,0).cpu() #convert from (3,32,32)
+        ax.imshow(img, cmap = 'bone')
         ax.set_title(f'true label: {true_label} ({true_prob:.3f})\n' \
                      f'pred label: {incorrect_label} ({incorrect_prob:.3f})')
         ax.axis('off')
     fig.subplots_adjust(hspace=0.5)
     fig.savefig('./outputs/most_incorrect.png')
 
+#pip install -U scikit-learn
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import ConfusionMatrixDisplay
 def plot_confusion_matrix(labels, pred_labels):
     
-    fig = plt.figure(figsize = (10, 10));
-    ax = fig.add_subplot(1, 1, 1);
-    cm = confusion_matrix(labels, pred_labels);
-    cm = ConfusionMatrixDisplay(cm, display_labels = range(10));
+    fig = plt.figure(figsize = (10, 10))
+    ax = fig.add_subplot(1, 1, 1)
+    cm = confusion_matrix(labels, pred_labels)
+    cm = ConfusionMatrixDisplay(cm, display_labels = range(10))
     cm.plot(values_format = 'd', cmap = 'Blues', ax = ax)
     fig.savefig('./outputs/confusion_matrix.png')
 
@@ -296,7 +302,8 @@ def evaluate(model, iterator, criterion, device):
             x = x.to(device)
             y = y.to(device)
 
-            y_pred, _ = model(x)
+            #y_pred, _ = model(x)
+            y_pred = model(x)
 
             loss = criterion(y_pred, y)
 
@@ -322,7 +329,8 @@ def get_predictions(model, iterator, device):
 
             x = x.to(device)
 
-            y_pred, _ = model(x)
+            #y_pred, _ = model(x)
+            y_pred = model(x)
 
             y_prob = F.softmax(y_pred, dim = -1)
             top_pred = y_prob.argmax(1, keepdim = True)

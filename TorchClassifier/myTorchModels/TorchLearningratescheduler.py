@@ -19,3 +19,4 @@ def setupLearningratescheduler(name, optimizer, EPOCHS, STEPS_PER_EPOCH):
         scheduler = lr_scheduler.OneCycleLR(optimizer,
                                     max_lr = MAX_LRS,
                                     total_steps = TOTAL_STEPS)
+    return scheduler

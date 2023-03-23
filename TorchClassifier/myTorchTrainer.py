@@ -38,7 +38,7 @@ parser.add_argument('--data_name', type=str, default='CIFAR10',
                     help='data name: hymenoptera_data, CIFAR10, MNIST, flower_photos')
 parser.add_argument('--data_type', default='torchvisiondataset', choices=['trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
                     help='the type of data') 
-parser.add_argument('--data_path', type=str, default='./../ImageClassificationData',
+parser.add_argument('--data_path', type=str, default='E:\Dataset',
                     help='path to get data') #/Developer/MyRepo/ImageClassificationData
 parser.add_argument('--img_height', type=int, default=28,
                     help='resize to img height, 224')
@@ -47,7 +47,7 @@ parser.add_argument('--img_width', type=int, default=28,
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='alexnet', choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1'],
+parser.add_argument('--model_name', default='cnnmodel1', choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1'],
                     help='the network')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
@@ -65,7 +65,7 @@ parser.add_argument('--GPU', type=bool, default=True,
 #                     help='use TPU')
 # parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
 #                     help='use MIXED_PRECISION')
-parser.add_argument('--TAG', default='0915',
+parser.add_argument('--TAG', default='0323',
                     help='setup the experimental TAG to differentiate different running results')
 parser.add_argument('--reproducible', type=bool, default=False,
                     help='get reproducible results we can set the random seed for Python, Numpy and PyTorch')
