@@ -16,6 +16,9 @@ import copy
 import PIL
 import PIL.Image
 
+# PyTorch TensorBoard support
+from torch.utils.tensorboard import SummaryWriter
+
 print(torch.__version__)
 
 from TorchClassifier.Datasetutil.Visutil import imshow, vistestresult
@@ -162,6 +165,17 @@ def visualize_model(model, dataloaders, class_names, num_images=6):
                     return
         model.train(mode=was_training)
 
+# Helper function for inline image display
+def matplotlib_imshow(img, one_channel=False):
+    if one_channel:
+        img = img.mean(dim=0)
+    img = img / 2 + 0.5     # unnormalize
+    npimg = img.numpy()
+    if one_channel:
+        plt.imshow(npimg, cmap="Greys")
+    else:
+        plt.imshow(np.transpose(npimg, (1, 2, 0)))
+
 def main():
     print("Torch Version: ", torch.__version__)
     print("Torchvision Version: ", torchvision.__version__)
@@ -200,13 +214,29 @@ def main():
     model_ft = model_ft.to(device)
 
     criterion = nn.CrossEntropyLoss()
-    test_model(model_ft, dataloaders, class_names, criterion, args.batchsize)
+    #test_model(model_ft, dataloaders, class_names, criterion, args.batchsize)
 
     if 'test' in dataloaders.keys():
         test_loader=dataloaders['test']
         # obtain one batch of test images
         dataiter = iter(test_loader)
         images, labels = next(dataiter)#.next()
+        # Create a grid from the images and show them
+        img_grid = torchvision.utils.make_grid(images)
+        matplotlib_imshow(img_grid, one_channel=False)
+
+        # Default log_dir argument is "runs" - but it's good to be specific
+        # torch.utils.tensorboard.SummaryWriter is imported above
+        writer = SummaryWriter('outputs/experiment_1')
+
+        # Write image data to TensorBoard log dir
+        writer.add_image('ExperimentImages', img_grid)
+        writer.flush()
+
+        # To view, start TensorBoard on the command line with:
+        #   tensorboard --logdir=runs
+        # ...and open a browser tab to http://localhost:6006/
+
         images.numpy()
         images = images.to(device)
 
