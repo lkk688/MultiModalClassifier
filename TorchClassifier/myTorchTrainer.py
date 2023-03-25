@@ -17,9 +17,16 @@ import random
 import PIL
 import PIL.Image
 
+model_names = sorted(name for name in models.__dict__
+    if name.islower() and not name.startswith("__")
+    and callable(models.__dict__[name]))
+
+# PyTorch TensorBoard support
+from torch.utils.tensorboard import SummaryWriter
+
 print(torch.__version__)
 
-from TorchClassifier.Datasetutil.Visutil import imshow, vistestresult
+from TorchClassifier.Datasetutil.Visutil import imshow, vistestresult, matplotlib_imshow
 from TorchClassifier.Datasetutil.Torchdatasetutil import loadTorchdataset
 from TorchClassifier.myTorchModels.TorchCNNmodels import createTorchCNNmodel
 from TorchClassifier.myTorchModels.TorchOptim import gettorchoptim
@@ -34,20 +41,20 @@ device = None
 # import logger
 
 parser = configargparse.ArgParser(description='myTorchClassify')
-parser.add_argument('--data_name', type=str, default='CIFAR10',
+parser.add_argument('--data_name', type=str, default='tiny-imagenet-200',
                     help='data name: hymenoptera_data, CIFAR10, MNIST, flower_photos')
-parser.add_argument('--data_type', default='torchvisiondataset', choices=['trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
+parser.add_argument('--data_type', default='trainvalfolder', choices=['trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
                     help='the type of data') 
-parser.add_argument('--data_path', type=str, default='E:\Dataset',
+parser.add_argument('--data_path', type=str, default=r"E:\Dataset\ImageNet\tiny-imagenet-200",
                     help='path to get data') #/Developer/MyRepo/ImageClassificationData
-parser.add_argument('--img_height', type=int, default=28,
+parser.add_argument('--img_height', type=int, default=224,
                     help='resize to img height, 224')
-parser.add_argument('--img_width', type=int, default=28,
+parser.add_argument('--img_width', type=int, default=224,
                     help='resize to img width, 224')
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='cnnmodel1', choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1'],
+parser.add_argument('--model_name', default='resnetmodel1', choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1'],
                     help='the network')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
@@ -55,9 +62,9 @@ parser.add_argument('--learningratename', default='StepLR', choices=['StepLR', '
                     help='learning rate name')
 parser.add_argument('--optimizer', default='Adam', choices=['SGD', 'Adam', 'adamresnetcustomrate'],
                     help='select the optimizer')
-parser.add_argument('--batchsize', type=int, default=32,
+parser.add_argument('--batchsize', type=int, default=128,
                     help='batch size')
-parser.add_argument('--epochs', type=int, default=15,
+parser.add_argument('--epochs', type=int, default=40,
                     help='epochs')
 parser.add_argument('--GPU', type=bool, default=True,
                     help='use GPU')
@@ -74,11 +81,20 @@ parser.add_argument('--reproducible', type=bool, default=False,
 args = parser.parse_args()
 
 
-def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, scheduler, num_epochs=25):
+def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, scheduler, num_epochs=25, 
+                tensorboard_writer=None, profile=None):
     since = time.time()
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
+
+    train_loss = [0.0 for i in range(num_epochs)]
+    val_loss = [0.0 for i in range(num_epochs)]
+    train_acc = [0.0 for i in range(num_epochs)]
+    val_acc = [0.0 for i in range(num_epochs)]
+
+    if profile is not None:
+        profile.start()
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
@@ -124,6 +140,10 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
                 # statistics
                 running_loss += loss.item() * inputs.size(0)#batch size
                 running_corrects += torch.sum(preds == labels.data)
+                    
+                if profile is not None:
+                    profile.step()
+
             if phase == 'train':
                 scheduler.step()
 
@@ -132,18 +152,37 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                 phase, epoch_loss, epoch_acc))
-
+            if phase == 'train':
+                train_loss[epoch] = epoch_loss
+                train_acc[epoch] = epoch_acc
+            else:
+                val_loss[epoch] = epoch_loss
+                val_acc[epoch] = epoch_acc
+            
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
-
+        
+        #finish one epoch train and val
         print()
+        if tensorboard_writer is not None:
+            tensorboard_writer.add_scalars('Training vs. Validation Loss',
+                {'Training': train_loss[epoch], 'Validation': val_loss[epoch]},
+                epoch)
+            tensorboard_writer.add_scalars('Training vs. Validation Accuracy',
+                {'Training': train_acc[epoch], 'Validation': val_acc[epoch]},
+                epoch)
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
     print('Best val Acc: {:4f}'.format(best_acc))
+
+    if tensorboard_writer is not None:
+        tensorboard_writer.flush()
+    if profile is not None:
+        profile.stop()
 
     # load best model weights
     model.load_state_dict(best_model_wts)
@@ -196,6 +235,10 @@ def main():
     print("Output path:", args.save_path)
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
+    
+    # torch.utils.tensorboard.SummaryWriter is imported above
+    #tensorboard --logdir= ; open a browser tab to http://localhost:6006/
+    tensorboard_writer = SummaryWriter(args.save_path)
 
     if args.GPU:
         num_gpu = torch.cuda.device_count()
@@ -216,9 +259,23 @@ def main():
     
     #Load dataset
     dataloaders, dataset_sizes, class_names, img_shape = loadTorchdataset(args.data_name,args.data_type, args.data_path, args.img_height, args.img_width, args.batchsize)
+    #Visualize dataset
+    test_loader=dataloaders['train']
+    # obtain one batch of test images
+    images, labels = next(iter(test_loader))
+    # Create a grid from the images and show them
+    img_grid = torchvision.utils.make_grid(images)
+    matplotlib_imshow(img_grid, one_channel=False)
+    tensorboard_writer.add_image('Image-grid',img_grid)
+    tensorboard_writer.flush()
 
     numclasses =len(class_names)
     model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape)
+
+    # add_graph() will trace the sample input through your model,
+    # and render it as a graph.
+    tensorboard_writer.add_graph(model_ft, images)
+    tensorboard_writer.flush()
 
     criterion = nn.CrossEntropyLoss()
 
@@ -235,17 +292,19 @@ def main():
     STEPS_PER_EPOCH = len(dataloaders['train'])
     lr_scheduler = setupLearningratescheduler(args.learningratename, optimizer_ft, args.epochs, STEPS_PER_EPOCH)
 
+    prof = torch.profiler.profile(
+        schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
+        on_trace_ready=torch.profiler.tensorboard_trace_handler(args.save_path),
+        record_shapes=True,
+        with_stack=True)
     model_ft = train_model(model_ft, dataloaders, dataset_sizes, criterion, optimizer_ft, lr_scheduler,
-                       num_epochs=args.epochs)
+                       num_epochs=args.epochs, tensorboard_writer=tensorboard_writer, profile=prof)
 
     #save torch model
     modelsavepath = os.path.join(args.save_path, 'model_best.pt')
     torch.save(model_ft.state_dict(), modelsavepath)
     
     visualize_model(model_ft, dataloaders, class_names, num_images=6)
-
-
-
 
 
 if __name__ == '__main__':

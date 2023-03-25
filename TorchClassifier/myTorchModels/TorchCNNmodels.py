@@ -369,7 +369,8 @@ def create_AlexNet(numclasses, img_shape):
 
 
 def create_resnetmodel1(numclasses, img_shape):
-    model_ft = models.resnet18(pretrained=True) #Downloading: "https://download.pytorch.org/models/resnet18-5c106cde.pth" to /home/lkk/.cache/torch/hub/checkpoints/resnet18-5c106cde.pth
+    #model_ft = models.resnet18(pretrained=True) #Downloading: "https://download.pytorch.org/models/resnet18-5c106cde.pth" to /home/lkk/.cache/torch/hub/checkpoints/resnet18-5c106cde.pth
+    model_ft = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
     num_ftrs = model_ft.fc.in_features #512
     # Here the size of each output sample is set to 2.
     # Alternatively, it can be generalized to nn.Linear(num_ftrs, len(class_names)).

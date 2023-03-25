@@ -16,6 +16,15 @@ valid_size = 0.2
 num_workers = 0 #4  # 0
 
 
+# Select a random subset of data and corresponding labels
+def select_n_random(data, labels, n=100):
+    assert len(data) == len(labels)
+
+    perm = torch.randperm(len(data))
+    return data[perm][:n], labels[perm][:n]
+# Extract a random subset of data
+#images, labels = select_n_random(training_set.data, training_set.targets)
+
 def datanormalization():
     # convert data to a normalized torch.FloatTensor
     # ref: https://pytorch.org/docs/stable/torchvision/transforms.html
