@@ -7,6 +7,10 @@ def setupLearningratescheduler(name, optimizer, EPOCHS, STEPS_PER_EPOCH):
     if name =='StepLR':
         # Decay LR by a factor of 0.1 every 7 epochs
         scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+    elif name == 'ConstantLR':
+        scheduler = lr_scheduler.ConstantLR(optimizer, factor=0.5, total_iters=4)
+        #total_iters (int) – The number of steps that the scheduler decays the learning rate. Default: 5.
+        #factor (float) – The number we multiply learning rate until the milestone. Default: 1./3.
     elif name == 'ExponentialLR':
         scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
     elif name == 'MultiStepLR':

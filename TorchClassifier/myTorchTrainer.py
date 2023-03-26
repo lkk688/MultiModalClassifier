@@ -8,7 +8,11 @@ from torch.optim import lr_scheduler
 import numpy as np
 import torchvision
 from torchvision import datasets, models, transforms
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('TkAgg',force=True)
+from matplotlib import pyplot as plt
+print("Switched to:",matplotlib.get_backend())
+#import matplotlib.pyplot as plt
 import time
 import os
 import copy
@@ -40,13 +44,15 @@ model = None
 device = None
 # import logger
 
+# Test CIFAR10:
+#python myTorchTrainer.py --data_name 'CIFAR10' --data_type 'torchvisiondataset' '--data_path' r"E:\Dataset" --model_name 'cnnmodel1' --learningratename 'ConstantLR' --optimizer 'SGD'
 parser = configargparse.ArgParser(description='myTorchClassify')
 parser.add_argument('--data_name', type=str, default='tiny-imagenet-200',
-                    help='data name: hymenoptera_data, CIFAR10, MNIST, flower_photos')
+                    help='data name: tiny-imagenet-200, hymenoptera_data, CIFAR10, MNIST, flower_photos')
 parser.add_argument('--data_type', default='trainvalfolder', choices=['trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
                     help='the type of data') 
 parser.add_argument('--data_path', type=str, default=r"E:\Dataset\ImageNet\tiny-imagenet-200",
-                    help='path to get data') #/Developer/MyRepo/ImageClassificationData
+                    help='path to get data') #/Developer/MyRepo/ImageClassificationData; r"E:\Dataset\ImageNet\tiny-imagenet-200"
 parser.add_argument('--img_height', type=int, default=224,
                     help='resize to img height, 224')
 parser.add_argument('--img_width', type=int, default=224,
@@ -58,9 +64,9 @@ parser.add_argument('--model_name', default='resnetmodel1', choices=['mlpmodel1'
                     help='the network')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
-parser.add_argument('--learningratename', default='StepLR', choices=['StepLR', 'ExponentialLR', 'MultiStepLR', 'OneCycleLR'],
+parser.add_argument('--learningratename', default='ConstantLR', choices=['StepLR', 'ConstantLR' 'ExponentialLR', 'MultiStepLR', 'OneCycleLR'],
                     help='learning rate name')
-parser.add_argument('--optimizer', default='Adam', choices=['SGD', 'Adam', 'adamresnetcustomrate'],
+parser.add_argument('--optimizer', default='SGD', choices=['SGD', 'Adam', 'adamresnetcustomrate'],
                     help='select the optimizer')
 parser.add_argument('--batchsize', type=int, default=128,
                     help='batch size')
@@ -72,7 +78,7 @@ parser.add_argument('--GPU', type=bool, default=True,
 #                     help='use TPU')
 # parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
 #                     help='use MIXED_PRECISION')
-parser.add_argument('--TAG', default='0323',
+parser.add_argument('--TAG', default='0324',
                     help='setup the experimental TAG to differentiate different running results')
 parser.add_argument('--reproducible', type=bool, default=False,
                     help='get reproducible results we can set the random seed for Python, Numpy and PyTorch')
@@ -125,6 +131,7 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
                     outputs = model(inputs) #shape 4,2; 32,10
                     if type(outputs) is tuple: #model may output multiple tensors as tuple
                         outputs, _ = outputs
+                    # convert output probabilities to predicted class
                     _, preds = torch.max(outputs, 1)#outputs size [32, 10]
 
                     # calculate the batch loss
@@ -203,6 +210,7 @@ def visualize_model(model, dataloaders, class_names, num_images=6):
             outputs = model(inputs)
             if type(outputs) is tuple: #model may output multiple tensors as tuple
                 outputs, _ = outputs
+            # convert output probabilities to predicted class
             _, preds = torch.max(outputs, 1)
 
             for j in range(inputs.size()[0]):
@@ -216,6 +224,88 @@ def visualize_model(model, dataloaders, class_names, num_images=6):
                     model.train(mode=was_training)
                     return
         model.train(mode=was_training)
+
+def visualize_result(model, dataloaders, classes, key='val'):
+    images, labels = next(iter(dataloaders['val']))
+    # move model inputs to cuda, if GPU available
+    images = images.to(device)
+    # get sample outputs
+    output = model(images)
+    # convert output probabilities to predicted class
+    _, preds_tensor = torch.max(output, 1)
+    #preds = np.squeeze(preds_tensor.numpy()) if not train_on_gpu else np.squeeze(preds_tensor.cpu().numpy())
+    preds = np.squeeze(preds_tensor.cpu().numpy())
+    # plot the images in the batch, along with predicted and true labels
+    fig = plt.figure(figsize=(25, 4))
+    for idx in np.arange(20):
+        ax = fig.add_subplot(2, 10, idx+1, xticks=[], yticks=[])
+        imshow(images.cpu()[idx])
+        ax.set_title("{} ({})".format(classes[preds[idx]], classes[labels[idx]]),
+                    color=("green" if preds[idx]==labels[idx].item() else "red"))
+
+
+def test_model(model, dataloaders, class_names, criterion, batch_size, key='test'):
+    numclasses = len(class_names)
+    # track test loss
+    test_loss = 0.0
+    class_correct = list(0. for i in range(numclasses))
+    class_total = list(0. for i in range(numclasses))
+
+    model.eval()
+
+    if key in dataloaders.keys():
+        test_loader=dataloaders[key]
+    else:
+        print("test dataset not available")
+        return
+
+    # iterate over test data
+    bathindex = 0
+    for data, target in test_loader:
+        bathindex = bathindex +1
+        # move tensors to GPU if CUDA is available
+        # if train_on_gpu:
+        #     data, target = data.cuda(), target.cuda()
+        data = data.to(device)
+        target = target.to(device)
+
+        # forward pass: compute predicted outputs by passing inputs to the model
+        outputs = model(data)
+        if type(outputs) is tuple: #model may output multiple tensors as tuple
+            outputs, _ = outputs
+        # calculate the batch loss
+        loss = criterion(outputs, target)
+        # update test loss 
+        test_loss += loss.item()*data.size(0)
+        # convert output probabilities to predicted class
+        _, pred = torch.max(outputs, 1)    
+        # compare predictions to true label
+        correct_tensor = pred.eq(target.data.view_as(pred))
+        train_on_gpu = torch.cuda.is_available()
+        correct = np.squeeze(correct_tensor.numpy()) if not train_on_gpu else np.squeeze(correct_tensor.cpu().numpy())
+
+        # calculate test accuracy for each object class
+        for i in range(batch_size):
+            if i<len(target.data):#the actual batch size of the last batch is smaller than the batch_size
+                label = target.data[i]
+                class_correct[label] += correct[i].item()
+                class_total[label] += 1
+    
+    # average test loss
+    test_loss = test_loss/len(test_loader.dataset)
+    print('Test Loss: {:.6f}\n'.format(test_loss))
+
+    for i in range(numclasses):
+        if class_total[i] > 0:
+            print('Test Accuracy of %5s: %2d%% (%2d/%2d)' % (
+                class_names[i], 100 * class_correct[i] / class_total[i],
+                np.sum(class_correct[i]), np.sum(class_total[i])))
+        else:
+            print('Test Accuracy of %5s: N/A (no training examples)' % (class_names[i]))
+    
+    print('\nTest Accuracy (Overall): %2d%% (%2d/%2d)' % (
+        100. * np.sum(class_correct) / np.sum(class_total),
+        np.sum(class_correct), np.sum(class_total)))
 
 def main():
     print("Torch Version: ", torch.__version__)
@@ -303,8 +393,12 @@ def main():
     #save torch model
     modelsavepath = os.path.join(args.save_path, 'model_best.pt')
     torch.save(model_ft.state_dict(), modelsavepath)
+
+    test_model(model_ft, dataloaders, class_names, criterion, args.batchsize, key='val')
     
-    visualize_model(model_ft, dataloaders, class_names, num_images=6)
+    #visualize_model(model_ft, dataloaders, class_names, num_images=6)
+    #visualize_result(model_ft, dataloaders, class_names, key='val')
+    
 
 
 if __name__ == '__main__':

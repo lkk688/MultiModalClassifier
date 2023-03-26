@@ -130,32 +130,32 @@ def loadTorchdataset(name, type, path, img_height=180, img_width=180, batch_size
     IMG_height = img_height
     IMG_width = img_width
 
-    mydata_transforms = dataargumation()
+    # mydata_transforms = dataargumation()
 
+    # if type == 'trainvalfolder':
+    #     # data_dir = 'data/hymenoptera_data' ='/DataDisk1/ImageClassificationData/hymenoptera_data'
+    #     datapath = os.path.join(path, name) #data path name is constructed by the input data path and the dataset name
+    #     image_datasets = {x: datasets.ImageFolder(os.path.join(datapath, x),
+    #                                               mydata_transforms[x])
+    #                       for x in ['train', 'val']}
+    #     dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=BATCH_SIZE,
+    #                                                   shuffle=True, num_workers=num_workers)
+    #                    for x in ['train', 'val']}
+    #     dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
+    #     class_names = image_datasets['train'].classes
+
+    #     # Get a batch of training data
+    #     # torch.Size([32, 3, 224, 224])
+    #     inputs, classes = next(iter(dataloaders['train']))
+    #     imagetensorshape = list(inputs.shape)  # torch.Size to python list
+    #     imageshape = imagetensorshape[1:]
+
+    #     # Make a grid from batch
+    #     out = torchvision.utils.make_grid(inputs)
+    #     imshow(out, title=[class_names[x] for x in classes])
+
+    #     return dataloaders, dataset_sizes, class_names, imageshape
     if type == 'trainvalfolder':
-        # data_dir = 'data/hymenoptera_data' ='/DataDisk1/ImageClassificationData/hymenoptera_data'
-        datapath = os.path.join(path, name) #data path name is constructed by the input data path and the dataset name
-        image_datasets = {x: datasets.ImageFolder(os.path.join(datapath, x),
-                                                  mydata_transforms[x])
-                          for x in ['train', 'val']}
-        dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=BATCH_SIZE,
-                                                      shuffle=True, num_workers=num_workers)
-                       for x in ['train', 'val']}
-        dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
-        class_names = image_datasets['train'].classes
-
-        # Get a batch of training data
-        # torch.Size([32, 3, 224, 224])
-        inputs, classes = next(iter(dataloaders['train']))
-        imagetensorshape = list(inputs.shape)  # torch.Size to python list
-        imageshape = imagetensorshape[1:]
-
-        # Make a grid from batch
-        out = torchvision.utils.make_grid(inputs)
-        imshow(out, title=[class_names[x] for x in classes])
-
-        return dataloaders, dataset_sizes, class_names, imageshape
-    elif type == 'trainvalfolder':
         return loadimagefolderdataset(name, path, split=['train', 'val'])
     elif type == 'traintestfolder':
         return loadimagefoldertraintestdataset(name, path, split=['train', 'test'])
