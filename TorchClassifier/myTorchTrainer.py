@@ -45,11 +45,15 @@ device = None
 # import logger
 
 # Test CIFAR10:
-#python myTorchTrainer.py --data_name 'CIFAR10' --data_type 'torchvisiondataset' '--data_path' r"E:\Dataset" --model_name 'cnnmodel1' --learningratename 'ConstantLR' --optimizer 'SGD'
+#python myTorchTrainer.py --data_name 'CIFAR10' --data_type 'torchvisiondataset' --data_path r"E:\Dataset" --model_name 'cnnmodel1' --learningratename 'ConstantLR' --optimizer 'SGD'
+
+#python myTorchTrainer.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path r"E:\Dataset\ImageNet\tiny-imagenet-200" --model_name 'resnetmodel1' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
+
+
 parser = configargparse.ArgParser(description='myTorchClassify')
 parser.add_argument('--data_name', type=str, default='tiny-imagenet-200',
                     help='data name: tiny-imagenet-200, hymenoptera_data, CIFAR10, MNIST, flower_photos')
-parser.add_argument('--data_type', default='trainvalfolder', choices=['trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
+parser.add_argument('--data_type', default='trainonly', choices=['trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
                     help='the type of data') 
 parser.add_argument('--data_path', type=str, default=r"E:\Dataset\ImageNet\tiny-imagenet-200",
                     help='path to get data') #/Developer/MyRepo/ImageClassificationData; r"E:\Dataset\ImageNet\tiny-imagenet-200"
@@ -64,8 +68,15 @@ parser.add_argument('--model_name', default='resnetmodel1', choices=['mlpmodel1'
                     help='the network')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
-parser.add_argument('--learningratename', default='ConstantLR', choices=['StepLR', 'ConstantLR' 'ExponentialLR', 'MultiStepLR', 'OneCycleLR'],
+parser.add_argument('--learningratename', default='StepLR', choices=['StepLR', 'ConstantLR' 'ExponentialLR', 'MultiStepLR', 'OneCycleLR'],
                     help='learning rate name')
+parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                    metavar='LR', help='initial learning rate', dest='lr')
+parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                    help='momentum')
+parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
+                    metavar='W', help='weight decay (default: 1e-4)',
+                    dest='weight_decay')
 parser.add_argument('--optimizer', default='SGD', choices=['SGD', 'Adam', 'adamresnetcustomrate'],
                     help='select the optimizer')
 parser.add_argument('--batchsize', type=int, default=128,
@@ -78,7 +89,7 @@ parser.add_argument('--GPU', type=bool, default=True,
 #                     help='use TPU')
 # parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
 #                     help='use MIXED_PRECISION')
-parser.add_argument('--TAG', default='0324',
+parser.add_argument('--TAG', default='0326',
                     help='setup the experimental TAG to differentiate different running results')
 parser.add_argument('--reproducible', type=bool, default=False,
                     help='get reproducible results we can set the random seed for Python, Numpy and PyTorch')
@@ -373,7 +384,8 @@ def main():
     criterion = criterion.to(device)
 
     # Observe that all parameters are being optimized, 
-    optimizer_ft=gettorchoptim(args.optimizer, model_ft) #'Adam'
+    optimizer_ft=gettorchoptim(args.optimizer, model_ft, lr=args.lr, momentum=args.momentum,
+                                weight_decay=args.weight_decay) #'Adam'
     # optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
     # optimizer_ft = optim.Adam(model_ft.parameters())
 
