@@ -159,8 +159,52 @@ def loadTorchdataset(name, type, path, img_height=180, img_width=180, batch_size
         return loadimagefolderdataset(name, path, split=['train', 'val'])
     elif type == 'traintestfolder':
         return loadimagefoldertraintestdataset(name, path, split=['train', 'test'])
+    elif type =='trainonly':
+        return loadimagefoldertrainonlydataset(name, path, split=['train'])
     elif type == 'torchvisiondataset':
         return loadtorchvisiondataset(name, path)
+
+def loadimagefoldertrainonlydataset(name, path, split=['train']):
+    data_transform = datapreprocess()
+
+    datapath = os.path.join(path, name)
+    train_dir = os.path.join(datapath, split[0])
+
+    train_data = datasets.ImageFolder(train_dir, transform=data_transform)
+    # print out some data stats
+    num_train = len(train_data)
+    print('Num training images: ', num_train)
+    
+    indices = list(range(num_train))
+    np.random.shuffle(indices)
+    split = int(np.floor(valid_size * num_train))
+    train_idx, valid_idx = indices[split:], indices[:split]
+
+    # define samplers for obtaining training and validation batches
+    train_sampler = SubsetRandomSampler(train_idx)
+    valid_sampler = SubsetRandomSampler(valid_idx)
+
+    # prepare data loaders
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=BATCH_SIZE, sampler=train_sampler, num_workers=num_workers)#sampler and shuffle cannot be used at the same time
+    valid_loader = torch.utils.data.DataLoader(train_data, batch_size=BATCH_SIZE, sampler=valid_sampler, num_workers=num_workers)
+
+    # obtain one batch of training images
+    dataiter = iter(train_loader)
+    images, labels = next(dataiter)#dataiter.next()
+    imagetensorshape = list(images.shape)  # torch.Size to python list
+    imageshape = imagetensorshape[1:]
+
+    class_names = train_data.classes
+
+    visbatchimage(images, labels, class_names)
+
+    dataloaders = {'train': train_loader,
+                    'val': valid_loader}
+    dataset_sizes = {'train': len(train_idx), 'val': len(
+        valid_idx)}
+
+    return dataloaders, dataset_sizes, class_names, imageshape
+
 
 def loadimagefoldertraintestdataset(name, path, split=['train', 'test']):
     data_transform = datapreprocess()
