@@ -9,6 +9,7 @@ from TorchClassifier.Datasetutil.Visutil import imshow, visbatchimage, visimagel
 BATCH_SIZE = 32
 IMG_height = 180
 IMG_width = 180
+#In PyTorch, images are represented as [channels, height, width]
 
 # percentage of training set to use as validation
 valid_size = 0.2
@@ -195,6 +196,9 @@ def loadimagefoldertrainonlydataset(name, path, split=['train']):
     imageshape = imagetensorshape[1:]
 
     class_names = train_data.classes
+    print('Number of classes: ', len(class_names))
+    print('Classes: ', class_names)
+
 
     visbatchimage(images, labels, class_names)
 

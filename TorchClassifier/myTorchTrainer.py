@@ -1,4 +1,5 @@
 from __future__ import print_function, division
+from PIL import Image #can solve the error of Glibc
 import configargparse #pip install configargparse
 
 import torch
@@ -17,13 +18,17 @@ import time
 import os
 import copy
 import random
+import warnings
+import shutil
 
 import PIL
 import PIL.Image
 
-model_names = sorted(name for name in models.__dict__
-    if name.islower() and not name.startswith("__")
-    and callable(models.__dict__[name]))
+os.environ['TORCH_HOME'] = '/data/cmpe249-fa22/torchhome/' #setting the environment variable
+
+CHECKPOINT_PATH="./outputs"
+CHECKPOINT_file=os.path.join(CHECKPOINT_PATH, 'checkpoint.pth.tar')
+
 
 # PyTorch TensorBoard support
 from torch.utils.tensorboard import SummaryWriter
@@ -35,6 +40,7 @@ from TorchClassifier.Datasetutil.Torchdatasetutil import loadTorchdataset
 from TorchClassifier.myTorchModels.TorchCNNmodels import createTorchCNNmodel
 from TorchClassifier.myTorchModels.TorchOptim import gettorchoptim
 from TorchClassifier.myTorchModels.TorchLearningratescheduler import setupLearningratescheduler
+from TorchClassifier.TrainValUtils import ProgressMeter, AverageMeter, accuracy
 # from TFClassifier.Datasetutil.TFdatasetutil import loadTFdataset #loadtfds, loadkerasdataset, loadimagefolderdataset
 # from TFClassifier.myTFmodels.CNNsimplemodels import createCNNsimplemodel
 # from TFClassifier.Datasetutil.Visutil import plot25images, plot9imagesfromtfdataset, plot_history
@@ -47,15 +53,18 @@ device = None
 # Test CIFAR10:
 #python myTorchTrainer.py --data_name 'CIFAR10' --data_type 'torchvisiondataset' --data_path r"E:\Dataset" --model_name 'cnnmodel1' --learningratename 'ConstantLR' --optimizer 'SGD'
 
+# tiny-imagenet-200
 #python myTorchTrainer.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path r"E:\Dataset\ImageNet\tiny-imagenet-200" --model_name 'resnetmodel1' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
 
+#imagenet_blurred
+#python myTorchTrainer.py --data_name 'imagenet_blurred' --data_type 'trainonly' --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'resnet50' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
 
 parser = configargparse.ArgParser(description='myTorchClassify')
-parser.add_argument('--data_name', type=str, default='tiny-imagenet-200',
-                    help='data name: tiny-imagenet-200, hymenoptera_data, CIFAR10, MNIST, flower_photos')
-parser.add_argument('--data_type', default='trainonly', choices=['trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
+parser.add_argument('--data_name', type=str, default='imagenet_blurred',
+                    help='data name: imagenet_blurred, tiny-imagenet-200, hymenoptera_data, CIFAR10, MNIST, flower_photos')
+parser.add_argument('--data_type', default='trainonly', choices=['trainonly','trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
                     help='the type of data') 
-parser.add_argument('--data_path', type=str, default=r"E:\Dataset\ImageNet\tiny-imagenet-200",
+parser.add_argument('--data_path', type=str, default="/data/cmpe249-fa22/ImageClassData",
                     help='path to get data') #/Developer/MyRepo/ImageClassificationData; r"E:\Dataset\ImageNet\tiny-imagenet-200"
 parser.add_argument('--img_height', type=int, default=224,
                     help='resize to img height, 224')
@@ -64,10 +73,14 @@ parser.add_argument('--img_width', type=int, default=224,
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='resnetmodel1', choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1'],
+parser.add_argument('--model_name', default='resnet50', choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1'],
                     help='the network')
+parser.add_argument('--resume', default=CHECKPOINT_file, type=str, metavar='PATH',
+                    help='path to latest checkpoint (default: none)')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
+parser.add_argument('--pretrained', dest='pretrained', action='store_true',
+                    help='use pre-trained model')
 parser.add_argument('--learningratename', default='StepLR', choices=['StepLR', 'ConstantLR' 'ExponentialLR', 'MultiStepLR', 'OneCycleLR'],
                     help='learning rate name')
 parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
@@ -81,15 +94,23 @@ parser.add_argument('--optimizer', default='SGD', choices=['SGD', 'Adam', 'adamr
                     help='select the optimizer')
 parser.add_argument('--batchsize', type=int, default=128,
                     help='batch size')
+parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+                    help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', type=int, default=40,
                     help='epochs')
+parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
+                    help='manual epoch number (useful on restarts)')
 parser.add_argument('--GPU', type=bool, default=True,
                     help='use GPU')
+parser.add_argument('--gpuid', default=0, type=int,
+                    help='GPU id to use.')
+parser.add_argument('--ddp', default=False, type=bool,
+                    help='Use multi-processing distributed training.')
 # parser.add_argument('--TPU', type=bool, default=False,
 #                     help='use TPU')
 # parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
 #                     help='use MIXED_PRECISION')
-parser.add_argument('--TAG', default='0326',
+parser.add_argument('--TAG', default='0328',
                     help='setup the experimental TAG to differentiate different running results')
 parser.add_argument('--reproducible', type=bool, default=False,
                     help='get reproducible results we can set the random seed for Python, Numpy and PyTorch')
@@ -97,25 +118,40 @@ parser.add_argument('--reproducible', type=bool, default=False,
 
 args = parser.parse_args()
 
+def save_checkpoint(state, is_best, path=CHECKPOINT_PATH):
+    filename=os.path.join(path, 'checkpoint.pth.tar')
+    torch.save(state, filename)
+    if is_best:
+        shutil.copyfile(filename, os.path.join(path, 'model_best.pth.tar'))
 
-def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, scheduler, num_epochs=25, 
-                tensorboard_writer=None, profile=None):
+def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, scheduler, start_epoch=0, num_epochs=25, 
+                tensorboard_writer=None, profile=None, checkpoint_path='./outputs/'):
     since = time.time()
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
 
-    train_loss = [0.0 for i in range(num_epochs)]
-    val_loss = [0.0 for i in range(num_epochs)]
-    train_acc = [0.0 for i in range(num_epochs)]
-    val_acc = [0.0 for i in range(num_epochs)]
+    train_loss = [0.0 for i in range(start_epoch, num_epochs)]
+    val_loss = [0.0 for i in range(start_epoch, num_epochs)]
+    train_acc = [0.0 for i in range(start_epoch, num_epochs)]
+    val_acc = [0.0 for i in range(start_epoch, num_epochs)]
 
     if profile is not None:
         profile.start()
 
-    for epoch in range(num_epochs):
+    for epoch in range(start_epoch, num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
+
+        batch_time = AverageMeter('Time', ':6.3f')
+        data_time = AverageMeter('Data', ':6.3f')
+        losses = AverageMeter('Loss', ':.4e')
+        top1 = AverageMeter('Acc@1', ':6.2f')
+        top5 = AverageMeter('Acc@5', ':6.2f')
+        progress = ProgressMeter(
+            len(dataloaders['train']),
+            [batch_time, data_time, losses, top1, top5],
+            prefix="Epoch: [{}]".format(epoch))
 
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
@@ -127,8 +163,11 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
             running_loss = 0.0
             running_corrects = 0
 
+            end = time.time()
             # Iterate over data.
-            for inputs, labels in dataloaders[phase]:
+            for i, (inputs, labels) in enumerate(dataloaders[phase]):
+                # measure data loading time
+                data_time.update(time.time() - end)
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
@@ -158,6 +197,17 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
                 # statistics
                 running_loss += loss.item() * inputs.size(0)#batch size
                 running_corrects += torch.sum(preds == labels.data)
+                # measure accuracy and record loss
+                acc1, acc5 = accuracy(outputs, labels, topk=(1, 5))
+                losses.update(loss.item(), inputs.size(0))
+                top1.update(acc1[0], inputs.size(0))
+                top5.update(acc5[0], inputs.size(0))
+                # measure elapsed time
+                batch_time.update(time.time() - end)
+                end = time.time()
+
+                if i % 10 == 0:
+                    progress.display(i + 1)
                     
                 if profile is not None:
                     profile.step()
@@ -177,10 +227,19 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
                 val_loss[epoch] = epoch_loss
                 val_acc[epoch] = epoch_acc
             
-            # deep copy the model
+            # deep copy the model, save checkpoint
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
+                is_best = True
+                save_checkpoint({
+                    'epoch': epoch + 1,
+                    'arch': args.arch,
+                    'state_dict': model.state_dict(),
+                    'best_acc1': best_acc,
+                    'optimizer' : optimizer.state_dict(),
+                    'scheduler' : scheduler.state_dict()
+                }, is_best, checkpoint_path)
         
         #finish one epoch train and val
         print()
@@ -330,6 +389,12 @@ def main():
         torch.manual_seed(SEED)
         torch.cuda.manual_seed(SEED)
         torch.backends.cudnn.deterministic = True
+        #torch.backends.cudnn.benchmark = False
+        warnings.warn('You have chosen to seed training. '
+                      'This will turn on the CUDNN deterministic setting, '
+                      'which can slow down your training considerably! '
+                      'You may see unexpected behavior when restarting '
+                      'from checkpoints.')
 
     #TAG="0727"
     args.save_path=args.save_path+args.data_name+'_'+args.model_name+'_'+args.TAG
@@ -371,7 +436,7 @@ def main():
     tensorboard_writer.flush()
 
     numclasses =len(class_names)
-    model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape)
+    model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape, args.pretrained)
 
     # add_graph() will trace the sample input through your model,
     # and render it as a graph.
@@ -394,17 +459,39 @@ def main():
     STEPS_PER_EPOCH = len(dataloaders['train'])
     lr_scheduler = setupLearningratescheduler(args.learningratename, optimizer_ft, args.epochs, STEPS_PER_EPOCH)
 
+    # optionally resume from a checkpoint
+    if args.resume:
+        if os.path.isfile(args.resume):
+            print("=> loading checkpoint '{}'".format(args.resume))
+            if args.gpuid is None:
+                checkpoint = torch.load(args.resume)
+            elif torch.cuda.is_available():
+                # Map model to be loaded to specified single gpu.
+                loc = 'cuda:{}'.format(args.gpuid)
+                checkpoint = torch.load(args.resume, map_location=loc)
+            args.start_epoch = checkpoint['epoch']
+            best_acc1 = checkpoint['best_acc1']
+            model_ft.load_state_dict(checkpoint['state_dict'])
+            optimizer_ft.load_state_dict(checkpoint['optimizer'])
+            lr_scheduler.load_state_dict(checkpoint['scheduler'])
+            print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(args.resume, checkpoint['epoch']))
+            print(f"Best accuracy from snapshot is {best_acc1}")
+        else:
+            print("=> no checkpoint found at '{}'".format(args.resume))
+
     prof = torch.profiler.profile(
         schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
         on_trace_ready=torch.profiler.tensorboard_trace_handler(args.save_path),
         record_shapes=True,
         with_stack=True)
     model_ft = train_model(model_ft, dataloaders, dataset_sizes, criterion, optimizer_ft, lr_scheduler,
-                       num_epochs=args.epochs, tensorboard_writer=tensorboard_writer, profile=prof)
+                       start_epoch=args.start_epoch, num_epochs=args.epochs, 
+                       tensorboard_writer=tensorboard_writer, profile=prof, checkpoint_path=args.save_path)
 
     #save torch model
-    modelsavepath = os.path.join(args.save_path, 'model_best.pt')
-    torch.save(model_ft.state_dict(), modelsavepath)
+    # modelsavepath = os.path.join(args.save_path, 'model_best.pt')
+    # torch.save(model_ft.state_dict(), modelsavepath)
 
     test_model(model_ft, dataloaders, class_names, criterion, args.batchsize, key='val')
     

@@ -16,14 +16,16 @@ import copy
 import PIL
 import PIL.Image
 
-# PyTorch TensorBoard support
-from torch.utils.tensorboard import SummaryWriter
+# # PyTorch TensorBoard support
+# from torch.utils.tensorboard import SummaryWriter
 
 print(torch.__version__)
 
-from TorchClassifier.Datasetutil.Visutil import imshow, vistestresult
+from TorchClassifier.Datasetutil.Visutil import visfirstimageinbatch, vistestresult, matplotlib_imshow, plot_most_incorrect
 from TorchClassifier.Datasetutil.Torchdatasetutil import loadTorchdataset
+from TorchClassifier.Datasetutil.Imagenetdata import loadjsontodict, preprocess_image, preprocess_imagecv2
 from TorchClassifier.myTorchModels.TorchCNNmodels import createTorchCNNmodel
+from TorchClassifier.TrainValUtils import test_model
 # from TFClassifier.Datasetutil.TFdatasetutil import loadTFdataset #loadtfds, loadkerasdataset, loadimagefolderdataset
 # from TFClassifier.myTFmodels.CNNsimplemodels import createCNNsimplemodel
 # from TFClassifier.Datasetutil.Visutil import plot25images, plot9imagesfromtfdataset, plot_history
@@ -33,39 +35,54 @@ model = None
 device = None
 # import logger
 
+os.environ['TORCH_HOME'] = '/data/cmpe249-fa22/torchhome/' #setting the environment variable
+
+
 parser = configargparse.ArgParser(description='myTorchClassify')
-parser.add_argument('--data_name', type=str, default='CIFAR10',
-                    help='data name: MNIST, hymenoptera_data, CIFAR10, flower_photos')
-parser.add_argument('--data_type', default='torchvisiondataset', choices=['trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
+parser.add_argument('--data_name', type=str, default='tiny-imagenet-200',
+                    help='data name: imagenet_blurred, tiny-imagenet-200, hymenoptera_data, CIFAR10, MNIST, flower_photos')
+parser.add_argument('--data_type', default='trainonly', choices=['trainonly', 'trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
                     help='the type of data') 
-parser.add_argument('--data_path', type=str, default='E:\Dataset',
+parser.add_argument('--data_path', type=str, default="/data/cmpe249-fa22/ImageClassData",
                     help='path to get data') #/Developer/MyRepo/ImageClassificationData
-parser.add_argument('--img_height', type=int, default=28,
+parser.add_argument('--img_height', type=int, default=224,
                     help='resize to img height, 224')
-parser.add_argument('--img_width', type=int, default=28,
+parser.add_argument('--img_width', type=int, default=224,
                     help='resize to img width, 224')
+parser.add_argument('--topk', type=int, default=5,
+                    help='show top k results')
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='cnnmodel1', choices=['mlpmodel1', 'lenet', 'resnetmodel1', 'vggmodel1', 'cnnmodel1'],
+parser.add_argument('--model_name', default='resnet50', choices=['mlpmodel1', 'lenet', 'resnetmodel1', 'vggmodel1', 'cnnmodel1'],
                     help='the network')
-parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
-                    help='Model Name, default: Pytorch.')
-parser.add_argument('--learningratename', default='warmupexpdecay', choices=['fixedstep', 'fixed', 'warmupexpdecay'],
-                    help='learning rate name')
-parser.add_argument('--optimizer', default='Adam', choices=['SGD', 'Adam'],
-                    help='select the optimizer')
+parser.add_argument('--checkpoint', default='outputs/tiny-imagenet-200_resnet50_0328/checkpoint.pth.tar', type=str, metavar='PATH',
+                    help='path to latest checkpoint (default: none)')
+# parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
+#                     help='Model Name, default: Pytorch.')
+# parser.add_argument('--learningratename', default='warmupexpdecay', choices=['fixedstep', 'fixed', 'warmupexpdecay'],
+#                     help='learning rate name')
+# parser.add_argument('--optimizer', default='Adam', choices=['SGD', 'Adam'],
+#                     help='select the optimizer')
+parser.add_argument('-j', '--workers', default=2, type=int, metavar='N',
+                    help='number of data loading workers (default: 2)')
 parser.add_argument('--batchsize', type=int, default=32,
                     help='batch size')
-parser.add_argument('--epochs', type=int, default=15,
-                    help='epochs')
+parser.add_argument('--classmap', default='TorchClassifier/Datasetutil/tinyimagenet_idmap.json', type=str, metavar='FILENAME',
+                    help='path to class to idx mapping file (default: "")')
+# parser.add_argument('--epochs', type=int, default=15,
+#                     help='epochs')
 parser.add_argument('--GPU', type=bool, default=True,
                     help='use GPU')
 parser.add_argument('--TPU', type=bool, default=False,
                     help='use TPU')
+parser.add_argument('--gpuid', default=1, type=int,
+                    help='GPU id to use.')
+parser.add_argument('--ddp', default=False, type=bool,
+                    help='Use multi-processing distributed training.')
 parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
                     help='use MIXED_PRECISION')
-parser.add_argument('--TAG', default='0323',
+parser.add_argument('--TAG', default='0328',
                     help='setup the experimental TAG to differentiate different running results')
 parser.add_argument('--reproducible', type=bool, default=False,
                     help='get reproducible results we can set the random seed for Python, Numpy and PyTorch')
@@ -74,107 +91,50 @@ parser.add_argument('--reproducible', type=bool, default=False,
 args = parser.parse_args()
 
 
-def test_model(model, dataloaders, class_names, criterion, batch_size):
-    numclasses = len(class_names)
-    # track test loss
-    test_loss = 0.0
-    class_correct = list(0. for i in range(numclasses))
-    class_total = list(0. for i in range(numclasses))
+def postfilter(indices, probs, classnames=None, min_threshold=0.1):
+    batchsize=indices.shape[0]
+    resultlen=indices.shape[1]
+    batchresults=[]
+    for batch in range(batchsize):
+        topkresult=[] #for single image
+        for i in range(resultlen):
+            oneresult={}
+            if probs[batch][i] > min_threshold:
+                idx=indices[batch][i]
+                oneresult['class_idx']= idx
+                oneresult['confidence']= probs[batch][i]
+                if classnames is not None and len(classnames)>idx:
+                    oneresult['classname']=classnames[idx]
+            topkresult.append(oneresult)
+        batchresults.append(topkresult)
+    return batchresults
 
-    model.eval()
+def model_inference(model, img_batch, top_k):
+    output = model(img_batch) #torch.Size([batchsize, classlen])
+    if type(output) is tuple: #model may output multiple tensors as tuple
+        output, _ = output
+    output_prob = output.softmax(-1) #convert logits to probability for dim = -1
+    output_prob, indices = output_prob.topk(top_k) #[256,batchsize]
+    np_indices = indices.cpu().numpy() #(batchsize, 5)
+    np_probs = output_prob.cpu().numpy()
+    return np_indices, np_probs
 
-    if 'test' in dataloaders.keys():
-        test_loader=dataloaders['test']
-    else:
-        print("test dataset not available")
-        return
-
-    # iterate over test data
-    bathindex = 0
-    for data, target in test_loader:
-        bathindex = bathindex +1
-        # move tensors to GPU if CUDA is available
-        # if train_on_gpu:
-        #     data, target = data.cuda(), target.cuda()
-        data = data.to(device)
-        target = target.to(device)
-
-        # forward pass: compute predicted outputs by passing inputs to the model
-        outputs = model(data)
-        if type(outputs) is tuple: #model may output multiple tensors as tuple
-            outputs, _ = outputs
-        # calculate the batch loss
-        loss = criterion(outputs, target)
-        # update test loss 
-        test_loss += loss.item()*data.size(0)
-        # convert output probabilities to predicted class
-        _, pred = torch.max(outputs, 1)    
-        # compare predictions to true label
-        correct_tensor = pred.eq(target.data.view_as(pred))
-        train_on_gpu = torch.cuda.is_available()
-        correct = np.squeeze(correct_tensor.numpy()) if not train_on_gpu else np.squeeze(correct_tensor.cpu().numpy())
-
-        # calculate test accuracy for each object class
-        for i in range(batch_size):
-            if i<len(target.data):#the actual batch size of the last batch is smaller than the batch_size
-                label = target.data[i]
-                class_correct[label] += correct[i].item()
-                class_total[label] += 1
+def inference_singleimage(image_path, model, device, classnames=None, truelabel=None, size=224, top_k=5, min_threshold=0.1):
+    img_batch = preprocess_imagecv2(image_path, imagesize=size)
+    img_batch = img_batch.to(device)
     
-    # average test loss
-    test_loss = test_loss/len(test_loader.dataset)
-    print('Test Loss: {:.6f}\n'.format(test_loss))
-
-    for i in range(numclasses):
-        if class_total[i] > 0:
-            print('Test Accuracy of %5s: %2d%% (%2d/%2d)' % (
-                class_names[i], 100 * class_correct[i] / class_total[i],
-                np.sum(class_correct[i]), np.sum(class_total[i])))
-        else:
-            print('Test Accuracy of %5s: N/A (no training examples)' % (class_names[i]))
-    
-    print('\nTest Accuracy (Overall): %2d%% (%2d/%2d)' % (
-        100. * np.sum(class_correct) / np.sum(class_total),
-        np.sum(class_correct), np.sum(class_total)))
-
-def visualize_model(model, dataloaders, class_names, num_images=6):
-    was_training = model.training
-    model.eval()
-    images_so_far = 0
-    fig = plt.figure()
-
     with torch.no_grad():
-        for i, (inputs, labels) in enumerate(dataloaders['val']):
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+        np_indices, np_probs = model_inference(model, img_batch, top_k)
+        batchresults = postfilter(np_indices, np_probs, classnames=classnames, min_threshold=min_threshold)
+    visfirstimageinbatch(img_batch, batchresults, classnames, truelabel)
 
-            outputs = model(inputs)
-            if type(outputs) is tuple: #model may output multiple tensors as tuple
-                outputs, _ = outputs
-            _, preds = torch.max(outputs, 1)
-
-            for j in range(inputs.size()[0]):
-                images_so_far += 1
-                ax = plt.subplot(num_images//2, 2, images_so_far)
-                ax.axis('off')
-                ax.set_title('predicted: {}'.format(class_names[preds[j]]))
-                imshow(inputs.cpu().data[j])
-
-                if images_so_far == num_images:
-                    model.train(mode=was_training)
-                    return
-        model.train(mode=was_training)
-
-# Helper function for inline image display
-def matplotlib_imshow(img, one_channel=False):
-    if one_channel:
-        img = img.mean(dim=0)
-    img = img / 2 + 0.5     # unnormalize
-    npimg = img.numpy()
-    if one_channel:
-        plt.imshow(npimg, cmap="Greys")
-    else:
-        plt.imshow(np.transpose(npimg, (1, 2, 0)))
+def inference_batchimage(img_batch, model, device, classnames=None, truelabel=None, size=224, top_k=5, min_threshold=0.1):
+    img_batch = img_batch.to(device)
+    with torch.no_grad():
+        np_indices, np_probs = model_inference(model, img_batch, top_k)
+        batchresults = postfilter(np_indices, np_probs, classnames=classnames, min_threshold=min_threshold)
+    #visfirstimageinbatch(img_batch, batchresults, classnames, truelabel)
+    return np_indices, np_probs, batchresults
 
 def main():
     print("Torch Version: ", torch.__version__)
@@ -197,108 +157,101 @@ def main():
         # Is PyTorch using a GPU?
         print(torch.cuda.is_available())
         global device
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        loc = 'cuda:{}'.format(args.gpuid)
+        device = torch.device(loc if torch.cuda.is_available() else "cpu")
 
     else:
         print("No GPU and TPU enabled")
     
+    #Load class map
+    classmap=loadjsontodict(args.classmap)
+    numclasses=len(classmap)
+
+    img_shape=[3, args.img_height, args.img_width] #[channels, height, width] in pytorch
+
+    #Create model
+    model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape)
+    model_ft = model_ft.to(device)
+    if args.checkpoint and os.path.isfile(args.checkpoint):
+        checkpoint = torch.load(args.checkpoint, map_location=device)
+        state_dict_key = ''
+        if isinstance(checkpoint, dict):
+            if 'state_dict' in checkpoint:
+                state_dict_key = 'state_dict'
+            elif 'model' in checkpoint:
+                state_dict_key = 'model'
+        model_state=checkpoint[state_dict_key]
+        size=model_state['fc.bias'].shape
+        print(f"Output size in model: {size[0]}, numclasses: {numclasses}")
+        model_ft.load_state_dict(model_state)
+        print(f"Loading checkpoint: {args.checkpoint}")
+    model_ft.eval()
+
     #Load dataset
     dataloaders, dataset_sizes, class_names, img_shape = loadTorchdataset(args.data_name,args.data_type, args.data_path, args.img_height, args.img_width, args.batchsize)
+    print("Class names:", len(class_names))
+    class_newnames=[]
+    for name in class_names:
+        newname=classmap[name]
+        class_newnames.append(newname)
 
-    numclasses =len(class_names)
-    model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape)
-
-    modelpath=os.path.join(args.save_path, 'model_best.pt')
-    model_ft.load_state_dict(torch.load(modelpath))
-
-    model_ft = model_ft.to(device)
-
+    newname=classmap['n04285008']
+    image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"#n04285008_497.JPEG"
+    inference_singleimage(image_path, model_ft, device, classnames=class_newnames, truelabel=newname, size=args.img_height, top_k=args.topk)
     criterion = nn.CrossEntropyLoss()
-    #test_model(model_ft, dataloaders, class_names, criterion, args.batchsize)
+    
 
-    if 'test' in dataloaders.keys():
-        test_loader=dataloaders['test']
-        # obtain one batch of test images
-        dataiter = iter(test_loader)
-        images, labels = next(dataiter)#.next()
+    if 'val' in dataloaders.keys():
+        val_loader=dataloaders['val']
+        # obtain one batch of validation images
+        images, labels = next(iter(val_loader)) #[32, 3, 224, 224]
         # Create a grid from the images and show them
         img_grid = torchvision.utils.make_grid(images)
         matplotlib_imshow(img_grid, one_channel=False)
 
         # Default log_dir argument is "runs" - but it's good to be specific
         # torch.utils.tensorboard.SummaryWriter is imported above
-        writer = SummaryWriter('outputs/experiment_1')
-
-        # Write image data to TensorBoard log dir
-        writer.add_image('ExperimentImages', img_grid)
-        writer.flush()
-
+        # writer = SummaryWriter('outputs/experiment_1')
+        # # Write image data to TensorBoard log dir
+        # writer.add_image('ExperimentImages', img_grid)
+        # writer.flush()
         # To view, start TensorBoard on the command line with:
         #   tensorboard --logdir=runs
         # ...and open a browser tab to http://localhost:6006/
 
-        images.numpy()
-        images = images.to(device)
+        #(batchsize, topk)
+        np_indices, np_probs, batchresults = inference_batchimage(images, model_ft, device, classnames=class_newnames, truelabel=labels, size=args.img_height, top_k=args.topk)
 
-        imagetensorshape = list(images.shape)  # torch.Size to python list
-        imageshape = imagetensorshape[1:]
+        vistestresult(images, labels, np_indices[:,0], class_newnames, args.save_path)
+        collect_incorrect_examples(images, labels, np_indices, args.topk, classnames=class_newnames)
 
-        # get sample outputs
-        outputs = model_ft(images)#torch.Size([32, 10])
-        if type(outputs) is tuple: #model may output multiple tensors as tuple
-                outputs, _ = outputs
-        # convert output probabilities to predicted class
-        _, preds_tensor = torch.max(outputs, 1) #https://pytorch.org/docs/stable/generated/torch.max.html, dim=1, [32,10]->[32]
 
-        on_gpu = torch.cuda.is_available()
-        preds = np.squeeze(preds_tensor.numpy()) if not on_gpu else np.squeeze(preds_tensor.cpu().numpy()) #to numpy array list
-        #preds = np.squeeze(preds_tensor.cpu().numpy())
-
-        vistestresult(images, labels, preds, class_names, args.save_path)
-
-        #Start accuracy evaluation
-        test_loss, test_acc = evaluate(model_ft, dataloaders['test'], criterion, device)
-        print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_acc*100:.2f}%')
-
-        images, labels, probs = get_predictions(model_ft, dataloaders['test'], device)
-        pred_labels = torch.argmax(probs, 1)
-        plot_confusion_matrix(labels, pred_labels)
-
-        corrects = torch.eq(labels, pred_labels)
-
-        #get all of the incorrect examples and sort them by descending confidence in their prediction
-        incorrect_examples = []
-
-        for image, label, prob, correct in zip(images, labels, probs, corrects):
-            if not correct:
-                incorrect_examples.append((image, label, prob))
-
-        incorrect_examples.sort(reverse = True, key = lambda x: torch.max(x[2], dim = 0).values)
+        #Start complete accuracy evaluation
+        test_loss, test_accuracy, labels, probs = test_model(model_ft, dataloaders, class_newnames, criterion, args.batchsize, key = 'val', device=device)
+        print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_accuracy*100:.2f}%')
+        plot_confusion_matrix(labels, probs)
         
-        N_IMAGES = 25
-        plot_most_incorrect(incorrect_examples, N_IMAGES)
+
+        
+
+def collect_incorrect_examples(images, labels, np_indices, topk, classnames=None):
+    if topk>1:
+        top1=np_indices[:,0] #[batchsize, topk]
+    top1=torch.from_numpy(top1)
+    corrects = torch.eq(labels, top1)#compare tensor
+    #get all of the incorrect examples and sort them by descending confidence in their prediction
+    incorrect_examples = []
+
+    for image, label, prob, correct in zip(images, labels, top1, corrects):
+        if not correct:
+            incorrect_examples.append((image, label, prob))
+
+    incorrect_examples.sort(reverse = True, key = lambda x: torch.max(x[2], dim = 0).values)
+    
+    N_IMAGES = min(len(incorrect_examples),25)
+    plot_most_incorrect(incorrect_examples, N_IMAGES, classnames)
 
 
-#plot the examples the model got wrong and was most confident about.
-def plot_most_incorrect(incorrect, n_images):
-
-    rows = int(np.sqrt(n_images))
-    cols = int(np.sqrt(n_images))
-
-    fig = plt.figure(figsize = (20, 10))
-    for i in range(rows*cols):
-        ax = fig.add_subplot(rows, cols, i+1)
-        image, true_label, probs = incorrect[i]
-        true_prob = probs[true_label]
-        incorrect_prob, incorrect_label = torch.max(probs, dim = 0)
-        #ax.imshow(image.view(imageshape[1],imageshape[2]).cpu().numpy(), cmap = 'bone')
-        img=image.permute(1,2,0).cpu() #convert from (3,32,32)
-        ax.imshow(img, cmap = 'bone')
-        ax.set_title(f'true label: {true_label} ({true_prob:.3f})\n' \
-                     f'pred label: {incorrect_label} ({incorrect_prob:.3f})')
-        ax.axis('off')
-    fig.subplots_adjust(hspace=0.5)
-    fig.savefig('./outputs/most_incorrect.png')
 
 #pip install -U scikit-learn
 from sklearn.metrics import confusion_matrix
@@ -308,41 +261,11 @@ def plot_confusion_matrix(labels, pred_labels):
     fig = plt.figure(figsize = (10, 10))
     ax = fig.add_subplot(1, 1, 1)
     cm = confusion_matrix(labels, pred_labels)
-    cm = ConfusionMatrixDisplay(cm, display_labels = range(10))
+    #cm = ConfusionMatrixDisplay(cm, display_labels = range(10))
+    cm = ConfusionMatrixDisplay(cm)
     cm.plot(values_format = 'd', cmap = 'Blues', ax = ax)
     fig.savefig('./outputs/confusion_matrix.png')
 
-def calculate_accuracy(y_pred, y):
-    top_pred = y_pred.argmax(1, keepdim = True)
-    correct = top_pred.eq(y.view_as(top_pred)).sum()
-    acc = correct.float() / y.shape[0]
-    return acc
-
-def evaluate(model, iterator, criterion, device):
-    
-    epoch_loss = 0
-    epoch_acc = 0
-    
-    model.eval()
-    
-    with torch.no_grad():
-        
-        for (x, y) in iterator:
-
-            x = x.to(device)
-            y = y.to(device)
-
-            #y_pred, _ = model(x)
-            y_pred = model(x)
-
-            loss = criterion(y_pred, y)
-
-            acc = calculate_accuracy(y_pred, y)
-
-            epoch_loss += loss.item()
-            epoch_acc += acc.item()
-        
-    return epoch_loss / len(iterator), epoch_acc / len(iterator)
 
 import torch.nn.functional as F
 def get_predictions(model, iterator, device):
