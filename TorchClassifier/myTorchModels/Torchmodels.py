@@ -16,15 +16,20 @@ resnet50 = torchvision.models.resnet50(pretrained=True)
 print(resnet50)
 #Downloading: "https://download.pytorch.org/models/resnet50-19c8e357.pth" to /data/cmpe249-fa22/torchhome/hub/checkpoints/resnet50-19c8e357.pth
 
+model = torch.hub.load('facebookresearch/deit:main', 'deit_base_patch16_224', pretrained=True)
+model.eval()
+
+
 print("Torch buildin models:", list_models())
 torchvisionallmodels=list_models(module=torchvision.models)
 print("Torchvision buildin models:", torchvisionallmodels)
 
 from torchvision.io import read_image
-img = read_image("../../tests/imgdata/rose.jpeg")
+img = read_image("tests/imgdata/rose.jpeg")
 model_name="resnet50"
 # Step 1: Initialize model with the best available weights
 weights_enum = get_model_weights(model_name)
+print(weights_enum.IMAGENET1K_V1)
 print([weight for weight in weights_enum])
 weights = get_weight("ResNet50_Weights.IMAGENET1K_V2")#ResNet50_Weights.DEFAULT
 currentmodel=get_model(model_name, weights=weights)#weights="DEFAULT"

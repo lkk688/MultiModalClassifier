@@ -47,6 +47,7 @@ def writedicttojson(Folder, dict, filename="imagenet_idmap.json"):
     with open(os.path.join(Folder, filename), "w") as file:
         file.write(json.dumps(dict))
 
+#"n02124075": "Egyptian cat"
 def loadjsontodict(Path):
     if Path and os.path.isfile(Path):
         f = open(Path)
@@ -54,6 +55,13 @@ def loadjsontodict(Path):
         return data
     else:
         return {}
+
+def dict2array(dicts):
+    varray=[]
+    for k, v in dicts.items():
+        varray.append(v)
+    test=[v for k, v in dicts]
+    return varray
 
 def foldernames2idmap(Folder):
     folderimage_map = {}

@@ -23,7 +23,7 @@ print(torch.__version__)
 
 from TorchClassifier.Datasetutil.Visutil import visfirstimageinbatch, vistestresult, matplotlib_imshow, plot_most_incorrect
 from TorchClassifier.Datasetutil.Torchdatasetutil import loadTorchdataset
-from TorchClassifier.Datasetutil.Imagenetdata import loadjsontodict, preprocess_image, preprocess_imagecv2
+from TorchClassifier.Datasetutil.Imagenetdata import loadjsontodict, dict2array, preprocess_image, preprocess_imagecv2
 from TorchClassifier.myTorchModels.TorchCNNmodels import createTorchCNNmodel
 from TorchClassifier.TrainValUtils import test_model
 # from TFClassifier.Datasetutil.TFdatasetutil import loadTFdataset #loadtfds, loadkerasdataset, loadimagefolderdataset
@@ -37,11 +37,18 @@ device = None
 
 os.environ['TORCH_HOME'] = '/data/cmpe249-fa22/torchhome/' #setting the environment variable
 
+#Tiny Imagenet evaluation
+#python myTOrchEvaluator.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' 
+# --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'resnet50'
+# --checkpoint 'outputs/tiny-imagenet-200_resnet50_0328/checkpoint.pth.tar'
+# --classmap 'TorchClassifier/Datasetutil/tinyimagenet_idmap.json'
+#image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"
+
 
 parser = configargparse.ArgParser(description='myTorchClassify')
-parser.add_argument('--data_name', type=str, default='tiny-imagenet-200',
+parser.add_argument('--data_name', type=str, default='imagenet_blurred',
                     help='data name: imagenet_blurred, tiny-imagenet-200, hymenoptera_data, CIFAR10, MNIST, flower_photos')
-parser.add_argument('--data_type', default='trainonly', choices=['trainonly', 'trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
+parser.add_argument('--data_type', default='valonly', choices=['trainonly', 'trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
                     help='the type of data') 
 parser.add_argument('--data_path', type=str, default="/data/cmpe249-fa22/ImageClassData",
                     help='path to get data') #/Developer/MyRepo/ImageClassificationData
@@ -55,6 +62,8 @@ parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
 parser.add_argument('--model_name', default='resnet50', choices=['mlpmodel1', 'lenet', 'resnetmodel1', 'vggmodel1', 'cnnmodel1'],
+                    help='the network')
+parser.add_argument('--model_type', default='ImageNet', choices=['ImageNet', 'custom'],
                     help='the network')
 parser.add_argument('--checkpoint', default='outputs/tiny-imagenet-200_resnet50_0328/checkpoint.pth.tar', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
@@ -136,6 +145,22 @@ def inference_batchimage(img_batch, model, device, classnames=None, truelabel=No
     #visfirstimageinbatch(img_batch, batchresults, classnames, truelabel)
     return np_indices, np_probs, batchresults
 
+from torchvision.models import get_model, get_model_weights, get_weight, list_models
+def createImageNetmodel(model_name):
+    # Step 1: Initialize model with the best available weights
+    weights_enum = get_model_weights(model_name)
+    weights = weights_enum.IMAGENET1K_V1
+    #print([weight for weight in weights_enum])
+    #weights = get_weight("ResNet50_Weights.IMAGENET1K_V2")#ResNet50_Weights.DEFAULT
+    currentmodel=get_model(model_name, weights=weights)#weights="DEFAULT"
+    #currentmodel.eval()
+    # Step 2: Initialize the inference transforms
+    preprocess = weights.transforms()#preprocess.crop_size
+    classes = weights.meta["categories"]
+    # Step 3: Apply inference preprocessing transforms
+    #batch = preprocess(img).unsqueeze(0)
+    return currentmodel, classes, preprocess
+
 def main():
     print("Torch Version: ", torch.__version__)
     print("Torchvision Version: ", torchvision.__version__)
@@ -162,38 +187,52 @@ def main():
 
     else:
         print("No GPU and TPU enabled")
-    
-    #Load class map
-    classmap=loadjsontodict(args.classmap)
-    numclasses=len(classmap)
 
     img_shape=[3, args.img_height, args.img_width] #[channels, height, width] in pytorch
 
+    #Load class map
+    classmap=loadjsontodict(args.classmap)
     #Create model
-    model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape)
-    model_ft = model_ft.to(device)
-    if args.checkpoint and os.path.isfile(args.checkpoint):
-        checkpoint = torch.load(args.checkpoint, map_location=device)
-        state_dict_key = ''
-        if isinstance(checkpoint, dict):
-            if 'state_dict' in checkpoint:
-                state_dict_key = 'state_dict'
-            elif 'model' in checkpoint:
-                state_dict_key = 'model'
-        model_state=checkpoint[state_dict_key]
-        size=model_state['fc.bias'].shape
-        print(f"Output size in model: {size[0]}, numclasses: {numclasses}")
-        model_ft.load_state_dict(model_state)
-        print(f"Loading checkpoint: {args.checkpoint}")
+    if args.model_type == "ImageNet":
+        model_ft, classnames, preprocess = createImageNetmodel(args.model_name)
+        model_ft = model_ft.to(device)
+        numclasses=len(classnames)
+    else:
+        classnames=dict2array(classmap)
+        numclasses=len(classmap)
+
+        model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape)
+        model_ft = model_ft.to(device)
+        if args.checkpoint and os.path.isfile(args.checkpoint):
+            checkpoint = torch.load(args.checkpoint, map_location=device)
+            state_dict_key = ''
+            if isinstance(checkpoint, dict):
+                if 'state_dict' in checkpoint:
+                    state_dict_key = 'state_dict'
+                elif 'model' in checkpoint:
+                    state_dict_key = 'model'
+            model_state=checkpoint[state_dict_key]
+            size=model_state['fc.bias'].shape
+            print(f"Output size in model: {size[0]}, numclasses: {numclasses}")
+            model_ft.load_state_dict(model_state)
+            print(f"Loading checkpoint: {args.checkpoint}")
     model_ft.eval()
+
+    newname=classmap['n04285008']
+    image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"#n04285008_497.JPEG"
+    inference_singleimage(image_path, model_ft, device, classnames=classnames, truelabel=newname, size=args.img_height, top_k=args.topk)
+    
 
     #Load dataset
     dataloaders, dataset_sizes, class_names, img_shape = loadTorchdataset(args.data_name,args.data_type, args.data_path, args.img_height, args.img_width, args.batchsize)
     print("Class names:", len(class_names))
-    class_newnames=[]
-    for name in class_names:
-        newname=classmap[name]
-        class_newnames.append(newname)
+    if args.model_type == "ImageNet":
+        class_newnames = classnames #1000 class
+    else:
+        class_newnames=[]
+        for name in class_names: #from the dataset
+            newname=classmap[name]
+            class_newnames.append(newname)
 
     newname=classmap['n04285008']
     image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"#n04285008_497.JPEG"
@@ -228,7 +267,7 @@ def main():
 
         #Start complete accuracy evaluation
         test_loss, test_accuracy, labels, probs = test_model(model_ft, dataloaders, class_newnames, criterion, args.batchsize, key = 'val', device=device)
-        print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_accuracy*100:.2f}%')
+        print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_accuracy:.2f}%')
         plot_confusion_matrix(labels, probs)
         
 

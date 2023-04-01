@@ -43,6 +43,7 @@ def datanormalization():
     ])
     return transform
 
+#all transforms: https://pytorch.org/vision/main/auto_examples/plot_transforms.html#sphx-glr-auto-examples-plot-transforms-py
 def datatransforms(mean, std, imagesize=28, training=True):
     if training==True:
         datatransform = transforms.Compose([
@@ -100,6 +101,9 @@ def imagenetdatatransforms(training=True, imagesize=224):
 #     }
 #     return data_transforms
 
+
+#If size is an int, smaller edge of the image will be matched to this number. 
+# i.e, if height > width, then image will be rescaled to (size * height / width, size).
 def dataargumation():
     # Data augmentation and normalization for training
     # Just normalization for validation
@@ -113,6 +117,7 @@ def dataargumation():
         ]),
         'val': transforms.Compose([
             transforms.Resize(imagesize),
+            transforms.CenterCrop(imagesize),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) #Imagenet mean and std
         ]),
@@ -162,6 +167,8 @@ def loadTorchdataset(name, type, path, img_height=180, img_width=180, batch_size
         return loadimagefoldertraintestdataset(name, path, split=['train', 'test'])
     elif type =='trainonly':
         return loadimagefoldertrainonlydataset(name, path, split=['train'])
+    elif type =='valonly':
+        return loadimagefolderdataset(name, path, split=['val'])
     elif type == 'torchvisiondataset':
         return loadtorchvisiondataset(name, path)
 
