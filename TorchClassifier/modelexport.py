@@ -15,6 +15,7 @@ import copy
 
 import PIL
 import PIL.Image
+import onnx
 
 # # PyTorch TensorBoard support
 # from torch.utils.tensorboard import SummaryWriter
@@ -36,28 +37,6 @@ device = None
 # import logger
 
 os.environ['TORCH_HOME'] = '/data/cmpe249-fa22/torchhome/' #setting the environment variable
-
-#Tiny Imagenet evaluation
-#python myTorchEvaluator.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' 
-# --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'resnet50'
-# --checkpoint 'outputs/tiny-imagenet-200_resnet50_0328/checkpoint.pth.tar'
-# --classmap 'TorchClassifier/Datasetutil/tinyimagenet_idmap.json'
-#image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"
-
-#imagenet_blurred
-#python myTorchEvaluator.py --data_name 'imagenet_blurred' --data_type 'trainonly' 
-# --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'resnet50'
-# --model_type 'ImageNet'
-# --classmap 'TorchClassifier/Datasetutil/imagenet1000id2label.json'
-#image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"
-
-#imagenet_blurred
-#python myTorchEvaluator.py --data_name 'imagenet_blurred' --data_type 'trainonly' 
-# --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'deit_base_patch16_224'
-# --model_type 'ImageNet' --torchhub 'facebookresearch/deit:main'
-# --classmap 'TorchClassifier/Datasetutil/imagenet1000id2label.json'
-#Test Accuracy (Overall): 80% (40219/49997)
-# Test Loss: 0.895 | Test Acc: 80.44%
 
 
 parser = configargparse.ArgParser(description='myTorchClassify')
@@ -163,6 +142,25 @@ def inference_batchimage(img_batch, model, device, classnames=None, truelabel=No
     #visfirstimageinbatch(img_batch, batchresults, classnames, truelabel)
     return np_indices, np_probs, batchresults
 
+def prepare_inputs(dataloader, device, numbatch=10):
+    """load sample inputs to device"""
+    inputs = []
+    for batch in dataloader:
+        if type(batch) is torch.Tensor:
+            batch_d = batch.to(device)
+            batch_d = (batch_d, )
+            inputs.append(batch_d)
+        else:
+            batch_d = []
+            for x in batch:
+                assert type(x) is torch.Tensor, "input is not a tensor"
+                batch_d.append(x.to(device))
+            batch_d = tuple(batch_d)
+            inputs.append(batch_d)
+        if len(inputs)>numbatch:
+            return inputs
+    return inputs
+
 def main():
     print("Torch Version: ", torch.__version__)
     print("Torchvision Version: ", torchvision.__version__)
@@ -224,88 +222,25 @@ def main():
 
     newname="Sports Cars"#classmap['n04285008']
     image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"#n04285008_497.JPEG"
-    inference_singleimage(image_path, model_ft, device, classnames=classnames, truelabel=newname, size=args.img_height, top_k=args.topk)
+    #inference_singleimage(image_path, model_ft, device, classnames=classnames, truelabel=newname, size=args.img_height, top_k=args.topk)
     
-
-    #Load dataset
-    dataloaders, dataset_sizes, class_names, img_shape = loadTorchdataset(args.data_name,args.data_type, args.data_path, args.img_height, args.img_width, args.batchsize)
-    print("Class names:", len(class_names))
-    if args.model_type == "ImageNet":
-        class_newnames = classnames #1000 class
-    else:
-        class_newnames=[]
-        for name in class_names: #from the dataset
-            newname=classmap[name]
-            class_newnames.append(newname)
-
-    criterion = nn.CrossEntropyLoss()
-    if 'val' in dataloaders.keys():
-        val_loader=dataloaders['val']
-        # obtain one batch of validation images
-        images, labels = next(iter(val_loader)) #[32, 3, 224, 224]
-        # Create a grid from the images and show them
-        img_grid = torchvision.utils.make_grid(images)
-        matplotlib_imshow(img_grid, one_channel=False)
-
-        # Default log_dir argument is "runs" - but it's good to be specific
-        # torch.utils.tensorboard.SummaryWriter is imported above
-        # writer = SummaryWriter('outputs/experiment_1')
-        # # Write image data to TensorBoard log dir
-        # writer.add_image('ExperimentImages', img_grid)
-        # writer.flush()
-        # To view, start TensorBoard on the command line with:
-        #   tensorboard --logdir=runs
-        # ...and open a browser tab to http://localhost:6006/
-
-        #(batchsize, topk)
-        np_indices, np_probs, batchresults = inference_batchimage(images, model_ft, device, classnames=class_newnames, truelabel=labels, size=args.img_height, top_k=args.topk)
-
-        vistestresult(images, labels, np_indices[:,0], class_newnames, args.save_path)
-        collect_incorrect_examples(images, labels, np_indices, args.topk, classnames=class_newnames)
-
-
-        #Start complete accuracy evaluation
-        test_loss, test_accuracy, labels, probs = test_model(model_ft, dataloaders, class_newnames, criterion, args.batchsize, key = 'val', device=device)
-        print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_accuracy:.2f}%')
-        plot_confusion_matrix(labels, probs)
-        
-
-        
-
-def collect_incorrect_examples(images, labels, np_indices, topk, classnames=None):
-    if topk>1:
-        top1=np_indices[:,0] #[batchsize, topk]
-    top1=torch.from_numpy(top1)
-    corrects = torch.eq(labels, top1)#compare tensor
-    #get all of the incorrect examples and sort them by descending confidence in their prediction
-    incorrect_examples = []
-
-    for image, label, prob, correct in zip(images, labels, top1, corrects):
-        if not correct:
-            incorrect_examples.append((image, label, prob))
-
-    incorrect_examples.sort(reverse = True, key = lambda x: torch.max(x[2], dim = 0).values)
+    #inputs = prepare_inputs(dataloaders['val'], device)
+    inputs = preprocess_image(image_path, imagesize=args.img_height)
+    inputs = inputs.to(device)
+    ONNX_FILE_PATH = os.path.join(args.save_path, args.model_name+'.onnx')
+    with torch.no_grad():
+        # torch.onnx.export(model_ft, inputs, ONNX_FILE_PATH, input_names=['input'],
+        #           output_names=['output'], export_params=True)
+        torch.onnx.export(model_ft,
+                          inputs,
+                          ONNX_FILE_PATH,
+                          verbose=True,
+                          opset_version=13,
+                          do_constant_folding=True)
     
-    N_IMAGES = min(len(incorrect_examples),25)
-    plot_most_incorrect(incorrect_examples, N_IMAGES, classnames)
-
-
-
-#pip install -U scikit-learn
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import ConfusionMatrixDisplay
-def plot_confusion_matrix(labels, pred_labels, maxlen=200):
-    if len(labels)>maxlen:
-        labels=labels[:maxlen]
-        pred_labels=pred_labels[:maxlen]
-    fig = plt.figure(figsize = (10, 10))
-    ax = fig.add_subplot(1, 1, 1)
-    cm = confusion_matrix(labels, pred_labels)
-    #cm = ConfusionMatrixDisplay(cm, display_labels = range(10))
-    cm = ConfusionMatrixDisplay(cm)
-    cm.plot(values_format = 'd', cmap = 'Blues', ax = ax)
-    fig.savefig('./outputs/confusion_matrix.png')
-
+    #check the model
+    onnx_model = onnx.load(ONNX_FILE_PATH)
+    onnx.checker.check_model(onnx_model)
 
 if __name__ == '__main__':
     main()

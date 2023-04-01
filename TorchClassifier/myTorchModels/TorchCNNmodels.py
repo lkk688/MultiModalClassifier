@@ -10,15 +10,41 @@ import torch.nn.functional as F
 from TorchClassifier.myTorchModels.CustomResNet import setupCustomResNet
 
 #old approach
-model_names = sorted(name for name in models.__dict__
-    if name.islower() and not name.startswith("__")
-    and callable(models.__dict__[name]))
-print("Torch buildin models:", model_names)
+# model_names = sorted(name for name in models.__dict__
+#     if name.islower() and not name.startswith("__")
+#     and callable(models.__dict__[name]))
+# print("Torch buildin models:", model_names)
 
 #new approach: https://pytorch.org/blog/easily-list-and-initialize-models-with-new-apis-in-torchvision/
 from torchvision.models import get_model, get_model_weights, get_weight, list_models
-print("Torch buildin models:", list_models())
-print("Torchvision buildin models:", list_models(module=torchvision.models))
+#print("Torch buildin models:", list_models())
+model_names=list_models(module=torchvision.models)
+#print("Torchvision buildin models:", model_names)
+
+# from torchvision.models import get_model, get_model_weights, get_weight, list_models
+def createImageNetmodel(model_name, torchhub=None):
+    if model_name in model_names:
+        # Step 1: Initialize model with the best available weights
+        weights_enum = get_model_weights(model_name)
+        weights = weights_enum.IMAGENET1K_V1
+        #print([weight for weight in weights_enum])
+        #weights = get_weight("ResNet50_Weights.IMAGENET1K_V2")#ResNet50_Weights.DEFAULT
+        currentmodel=get_model(model_name, weights=weights)#weights="DEFAULT"
+        #currentmodel.eval()
+        # Step 2: Initialize the inference transforms
+        preprocess = weights.transforms()#preprocess.crop_size
+        classes = weights.meta["categories"]
+        # Step 3: Apply inference preprocessing transforms
+        #batch = preprocess(img).unsqueeze(0)
+        numclasses = len(classes)
+        return currentmodel, classes, numclasses, preprocess
+    elif torchhub is not None:
+        #'deit_base_patch16_224'
+        currentmodel = torch.hub.load('facebookresearch/deit:main', model_name, pretrained=True)
+        return currentmodel, None, 1000, None #.num_classes
+        # print("Model's state_dict:") #
+        # for param_tensor in currentmodel.state_dict():
+        #     print(param_tensor, "\t", currentmodel.state_dict()[param_tensor].size())
 
 def createTorchCNNmodel(name, numclasses, img_shape, pretrained=True):
     if name=='cnnmodel1':

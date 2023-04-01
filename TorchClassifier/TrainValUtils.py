@@ -241,3 +241,34 @@ def visualize_model(model, dataloaders, class_names, num_images=6, device="cuda"
                     model.train(mode=was_training)
                     return
         model.train(mode=was_training)
+
+import torch.nn.functional as F
+def get_predictions(model, iterator, device):
+
+    model.eval()
+
+    images = []
+    labels = []
+    probs = []
+
+    with torch.no_grad():
+
+        for (x, y) in iterator:
+
+            x = x.to(device)
+
+            #y_pred, _ = model(x)
+            y_pred = model(x)
+
+            y_prob = F.softmax(y_pred, dim = -1)
+            top_pred = y_prob.argmax(1, keepdim = True)
+
+            images.append(x.cpu())
+            labels.append(y.cpu())
+            probs.append(y_prob.cpu())
+
+    images = torch.cat(images, dim = 0)
+    labels = torch.cat(labels, dim = 0)
+    probs = torch.cat(probs, dim = 0)
+
+    return images, labels, probs

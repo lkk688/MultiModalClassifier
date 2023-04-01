@@ -161,3 +161,18 @@ def plot_most_incorrect(incorrect, n_images, classnames):
         ax.axis('off')
     fig.subplots_adjust(hspace=0.5)
     fig.savefig('./outputs/most_incorrect.png')
+
+#pip install -U scikit-learn
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay
+def plot_confusion_matrix(labels, pred_labels, maxlen=200):
+    if len(labels)>maxlen:
+        labels=labels[:maxlen]
+        pred_labels=pred_labels[:maxlen]
+    fig = plt.figure(figsize = (10, 10))
+    ax = fig.add_subplot(1, 1, 1)
+    cm = confusion_matrix(labels, pred_labels)
+    #cm = ConfusionMatrixDisplay(cm, display_labels = range(10))
+    cm = ConfusionMatrixDisplay(cm)
+    cm.plot(values_format = 'd', cmap = 'Blues', ax = ax)
+    fig.savefig('./outputs/confusion_matrix.png')
