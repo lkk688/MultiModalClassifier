@@ -272,3 +272,129 @@ def get_predictions(model, iterator, device):
     probs = torch.cat(probs, dim = 0)
 
     return images, labels, probs
+
+def visualize_result(model, dataloaders, classes, key='val', device='cuda'):
+    images, labels = next(iter(dataloaders['val']))
+    # move model inputs to cuda, if GPU available
+    images = images.to(device)
+    # get sample outputs
+    output = model(images)
+    # convert output probabilities to predicted class
+    _, preds_tensor = torch.max(output, 1)
+    #preds = np.squeeze(preds_tensor.numpy()) if not train_on_gpu else np.squeeze(preds_tensor.cpu().numpy())
+    preds = np.squeeze(preds_tensor.cpu().numpy())
+    # plot the images in the batch, along with predicted and true labels
+    fig = plt.figure(figsize=(25, 4))
+    for idx in np.arange(20):
+        ax = fig.add_subplot(2, 10, idx+1, xticks=[], yticks=[])
+        imshow(images.cpu()[idx])
+        ax.set_title("{} ({})".format(classes[preds[idx]], classes[labels[idx]]),
+                    color=("green" if preds[idx]==labels[idx].item() else "red"))
+
+def postfilter(indices, probs, classnames=None, min_threshold=0.1):
+    batchsize=indices.shape[0]
+    resultlen=indices.shape[1]
+    batchresults=[]
+    for batch in range(batchsize):
+        topkresult=[] #for single image
+        for i in range(resultlen):
+            oneresult={}
+            if probs[batch][i] > min_threshold:
+                idx=indices[batch][i]
+                oneresult['class_idx']= idx
+                oneresult['confidence']= probs[batch][i]
+                if classnames is not None and len(classnames)>idx:
+                    oneresult['classname']=classnames[idx]
+            topkresult.append(oneresult)
+        batchresults.append(topkresult)
+    return batchresults
+
+from TorchClassifier.Datasetutil.Imagenetdata import loadjsontodict, dict2array, preprocess_image, preprocess_imagecv2
+from TorchClassifier.Datasetutil.Visutil import visfirstimageinbatch, plot_most_incorrect
+from TorchClassifier.myTorchModels.TorchCNNmodels import createTorchCNNmodel, createImageNetmodel
+import os
+def create_model(model_name, model_type, classmap, checkpoint=None, torchhub=None, device="cuda", img_shape=[2, 224, 224]):
+    #Load class map
+    classmap=loadjsontodict(classmap)
+    #Create model
+    if model_type == "ImageNet":
+        model_ft, classnames, numclasses, preprocess = createImageNetmodel(model_name, torchhub)
+        model_ft = model_ft.to(device)
+        if classnames is None:
+            classnames=dict2array(classmap)
+            numclasses=len(classmap)
+    else:
+        classnames=dict2array(classmap)
+        numclasses=len(classmap)
+
+        model_ft = createTorchCNNmodel(model_name, numclasses, img_shape)
+        model_ft = model_ft.to(device)
+        if checkpoint and os.path.isfile(checkpoint):
+            checkpoint = torch.load(checkpoint, map_location=device)
+            state_dict_key = ''
+            if isinstance(checkpoint, dict):
+                if 'state_dict' in checkpoint:
+                    state_dict_key = 'state_dict'
+                elif 'model' in checkpoint:
+                    state_dict_key = 'model'
+            model_state=checkpoint[state_dict_key]
+            size=model_state['fc.bias'].shape
+            print(f"Output size in model: {size[0]}, numclasses: {numclasses}")
+            model_ft.load_state_dict(model_state)
+            print(f"Loading checkpoint: {checkpoint}")
+    return model_ft, classnames, numclasses, classmap
+
+def getclass_newnames(model_type, classmap, model_classnames, dataset_classnames):
+    print("Dataset Class names:", len(dataset_classnames))
+    if model_type == "ImageNet":
+        class_newnames = model_classnames #1000 class
+    else:
+        class_newnames=[]
+        for name in dataset_classnames: #from the dataset
+            newname=classmap[name]
+            class_newnames.append(newname)
+
+def model_inference(model, img_batch, top_k):
+    output = model(img_batch) #torch.Size([batchsize, classlen])
+    if type(output) is tuple: #model may output multiple tensors as tuple
+        output, _ = output
+    output_prob = output.softmax(-1) #convert logits to probability for dim = -1
+    output_prob, indices = output_prob.topk(top_k) #[256,batchsize]
+    np_indices = indices.cpu().numpy() #(batchsize, 5)
+    np_probs = output_prob.cpu().numpy()
+    return np_indices, np_probs
+
+def inference_singleimage(image_path, model, device, classnames=None, truelabel=None, size=224, top_k=5, min_threshold=0.1):
+    #img_batch = preprocess_imagecv2(image_path, imagesize=size)
+    img_batch = preprocess_image(image_path, imagesize=size)
+    img_batch = img_batch.to(device)
+    
+    with torch.no_grad():
+        np_indices, np_probs = model_inference(model, img_batch, top_k)
+        batchresults = postfilter(np_indices, np_probs, classnames=classnames, min_threshold=min_threshold)
+    visfirstimageinbatch(img_batch, batchresults, classnames, truelabel)
+
+def inference_batchimage(img_batch, model, device, classnames=None, truelabel=None, size=224, top_k=5, min_threshold=0.1):
+    img_batch = img_batch.to(device)
+    with torch.no_grad():
+        np_indices, np_probs = model_inference(model, img_batch, top_k)
+        batchresults = postfilter(np_indices, np_probs, classnames=classnames, min_threshold=min_threshold)
+    #visfirstimageinbatch(img_batch, batchresults, classnames, truelabel)
+    return np_indices, np_probs, batchresults
+
+def collect_incorrect_examples(images, labels, np_indices, topk, classnames=None):
+    if topk>1:
+        top1=np_indices[:,0] #[batchsize, topk]
+    top1=torch.from_numpy(top1)
+    corrects = torch.eq(labels, top1)#compare tensor
+    #get all of the incorrect examples and sort them by descending confidence in their prediction
+    incorrect_examples = []
+
+    for image, label, prob, correct in zip(images, labels, top1, corrects):
+        if not correct:
+            incorrect_examples.append((image, label, prob))
+
+    incorrect_examples.sort(reverse = True, key = lambda x: torch.max(x[2], dim = 0).values)
+    
+    N_IMAGES = min(len(incorrect_examples),25)
+    plot_most_incorrect(incorrect_examples, N_IMAGES, classnames)

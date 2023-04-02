@@ -75,7 +75,11 @@ parser.add_argument('--save_path', type=str, default='./outputs/',
 # network
 parser.add_argument('--model_name', default='resnet50', choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1'],
                     help='the network')
-parser.add_argument('--resume', default=CHECKPOINT_file, type=str, metavar='PATH',
+parser.add_argument('--model_type', default='ImageNet', choices=['ImageNet', 'custom'],
+                    help='the network')
+parser.add_argument('--torchhub', default='facebookresearch/deit:main',
+                    help='the torch hub link')
+parser.add_argument('--resume', default="outputs/imagenet_blurred_resnet50_0328/model_best.pth.tar", type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
@@ -92,14 +96,16 @@ parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                     dest='weight_decay')
 parser.add_argument('--optimizer', default='SGD', choices=['SGD', 'Adam', 'adamresnetcustomrate'],
                     help='select the optimizer')
+parser.add_argument('-j', '--workers', default=2, type=int, metavar='N',
+                    help='number of data loading workers (default: 2)')
 parser.add_argument('--batchsize', type=int, default=128,
                     help='batch size')
-parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
-                    help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', type=int, default=40,
                     help='epochs')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
+parser.add_argument('--classmap', default='TorchClassifier/Datasetutil/imagenet1000id2label.json', type=str, metavar='FILENAME',
+                    help='path to class to idx mapping file (default: "")')
 parser.add_argument('--GPU', type=bool, default=True,
                     help='use GPU')
 parser.add_argument('--gpuid', default=0, type=int,
@@ -131,10 +137,10 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
 
-    train_loss = [0.0 for i in range(start_epoch, num_epochs)]
-    val_loss = [0.0 for i in range(start_epoch, num_epochs)]
-    train_acc = [0.0 for i in range(start_epoch, num_epochs)]
-    val_acc = [0.0 for i in range(start_epoch, num_epochs)]
+    train_loss = [0.0 for i in range(0, num_epochs)] #start_epoch
+    val_loss = [0.0 for i in range(0, num_epochs)]
+    train_acc = [0.0 for i in range(0, num_epochs)]
+    val_acc = [0.0 for i in range(0, num_epochs)]
 
     if profile is not None:
         profile.start()
@@ -206,7 +212,7 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
                 batch_time.update(time.time() - end)
                 end = time.time()
 
-                if i % 10 == 0:
+                if i % 100 == 0:
                     progress.display(i + 1)
                     
                 if profile is not None:
@@ -264,54 +270,6 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
     # load best model weights
     model.load_state_dict(best_model_wts)
     return model
-
-
-def visualize_model(model, dataloaders, class_names, num_images=6):
-    was_training = model.training
-    model.eval()
-    images_so_far = 0
-    fig = plt.figure()
-
-    with torch.no_grad():
-        for i, (inputs, labels) in enumerate(dataloaders['val']):
-            inputs = inputs.to(device)
-            labels = labels.to(device)
-
-            outputs = model(inputs)
-            if type(outputs) is tuple: #model may output multiple tensors as tuple
-                outputs, _ = outputs
-            # convert output probabilities to predicted class
-            _, preds = torch.max(outputs, 1)
-
-            for j in range(inputs.size()[0]):
-                images_so_far += 1
-                ax = plt.subplot(num_images//2, 2, images_so_far)
-                ax.axis('off')
-                ax.set_title('predicted: {}'.format(class_names[preds[j]]))
-                imshow(inputs.cpu().data[j])
-
-                if images_so_far == num_images:
-                    model.train(mode=was_training)
-                    return
-        model.train(mode=was_training)
-
-def visualize_result(model, dataloaders, classes, key='val'):
-    images, labels = next(iter(dataloaders['val']))
-    # move model inputs to cuda, if GPU available
-    images = images.to(device)
-    # get sample outputs
-    output = model(images)
-    # convert output probabilities to predicted class
-    _, preds_tensor = torch.max(output, 1)
-    #preds = np.squeeze(preds_tensor.numpy()) if not train_on_gpu else np.squeeze(preds_tensor.cpu().numpy())
-    preds = np.squeeze(preds_tensor.cpu().numpy())
-    # plot the images in the batch, along with predicted and true labels
-    fig = plt.figure(figsize=(25, 4))
-    for idx in np.arange(20):
-        ax = fig.add_subplot(2, 10, idx+1, xticks=[], yticks=[])
-        imshow(images.cpu()[idx])
-        ax.set_title("{} ({})".format(classes[preds[idx]], classes[labels[idx]]),
-                    color=("green" if preds[idx]==labels[idx].item() else "red"))
 
 
 def test_model(model, dataloaders, class_names, criterion, batch_size, key='test'):

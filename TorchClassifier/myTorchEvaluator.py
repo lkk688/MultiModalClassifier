@@ -25,11 +25,8 @@ from TorchClassifier.Datasetutil.Visutil import visfirstimageinbatch, vistestres
 from TorchClassifier.Datasetutil.Torchdatasetutil import loadTorchdataset
 from TorchClassifier.Datasetutil.Imagenetdata import loadjsontodict, dict2array, preprocess_image, preprocess_imagecv2
 from TorchClassifier.myTorchModels.TorchCNNmodels import createTorchCNNmodel, createImageNetmodel
-from TorchClassifier.TrainValUtils import test_model
-# from TFClassifier.Datasetutil.TFdatasetutil import loadTFdataset #loadtfds, loadkerasdataset, loadimagefolderdataset
-# from TFClassifier.myTFmodels.CNNsimplemodels import createCNNsimplemodel
-# from TFClassifier.Datasetutil.Visutil import plot25images, plot9imagesfromtfdataset, plot_history
-# from TFClassifier.myTFmodels.optimizer_factory import build_learning_rate, setupTensorboardWriterforLR
+from TorchClassifier.TrainValUtils import create_model, test_model, postfilter, \
+    model_inference, inference_singleimage, inference_batchimage, collect_incorrect_examples, getclass_newnames
 
 model = None 
 device = None
@@ -117,51 +114,6 @@ parser.add_argument('--reproducible', type=bool, default=False,
 args = parser.parse_args()
 
 
-def postfilter(indices, probs, classnames=None, min_threshold=0.1):
-    batchsize=indices.shape[0]
-    resultlen=indices.shape[1]
-    batchresults=[]
-    for batch in range(batchsize):
-        topkresult=[] #for single image
-        for i in range(resultlen):
-            oneresult={}
-            if probs[batch][i] > min_threshold:
-                idx=indices[batch][i]
-                oneresult['class_idx']= idx
-                oneresult['confidence']= probs[batch][i]
-                if classnames is not None and len(classnames)>idx:
-                    oneresult['classname']=classnames[idx]
-            topkresult.append(oneresult)
-        batchresults.append(topkresult)
-    return batchresults
-
-def model_inference(model, img_batch, top_k):
-    output = model(img_batch) #torch.Size([batchsize, classlen])
-    if type(output) is tuple: #model may output multiple tensors as tuple
-        output, _ = output
-    output_prob = output.softmax(-1) #convert logits to probability for dim = -1
-    output_prob, indices = output_prob.topk(top_k) #[256,batchsize]
-    np_indices = indices.cpu().numpy() #(batchsize, 5)
-    np_probs = output_prob.cpu().numpy()
-    return np_indices, np_probs
-
-def inference_singleimage(image_path, model, device, classnames=None, truelabel=None, size=224, top_k=5, min_threshold=0.1):
-    #img_batch = preprocess_imagecv2(image_path, imagesize=size)
-    img_batch = preprocess_image(image_path, imagesize=size)
-    img_batch = img_batch.to(device)
-    
-    with torch.no_grad():
-        np_indices, np_probs = model_inference(model, img_batch, top_k)
-        batchresults = postfilter(np_indices, np_probs, classnames=classnames, min_threshold=min_threshold)
-    visfirstimageinbatch(img_batch, batchresults, classnames, truelabel)
-
-def inference_batchimage(img_batch, model, device, classnames=None, truelabel=None, size=224, top_k=5, min_threshold=0.1):
-    img_batch = img_batch.to(device)
-    with torch.no_grad():
-        np_indices, np_probs = model_inference(model, img_batch, top_k)
-        batchresults = postfilter(np_indices, np_probs, classnames=classnames, min_threshold=min_threshold)
-    #visfirstimageinbatch(img_batch, batchresults, classnames, truelabel)
-    return np_indices, np_probs, batchresults
 
 def main():
     print("Torch Version: ", torch.__version__)
@@ -192,51 +144,18 @@ def main():
 
     img_shape=[3, args.img_height, args.img_width] #[channels, height, width] in pytorch
 
-    #Load class map
-    classmap=loadjsontodict(args.classmap)
-    #Create model
-    if args.model_type == "ImageNet":
-        model_ft, classnames, numclasses, preprocess = createImageNetmodel(args.model_name, args.torchhub)
-        model_ft = model_ft.to(device)
-        if classnames is None:
-            classnames=dict2array(classmap)
-            numclasses=len(classmap)
-    else:
-        classnames=dict2array(classmap)
-        numclasses=len(classmap)
-
-        model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape)
-        model_ft = model_ft.to(device)
-        if args.checkpoint and os.path.isfile(args.checkpoint):
-            checkpoint = torch.load(args.checkpoint, map_location=device)
-            state_dict_key = ''
-            if isinstance(checkpoint, dict):
-                if 'state_dict' in checkpoint:
-                    state_dict_key = 'state_dict'
-                elif 'model' in checkpoint:
-                    state_dict_key = 'model'
-            model_state=checkpoint[state_dict_key]
-            size=model_state['fc.bias'].shape
-            print(f"Output size in model: {size[0]}, numclasses: {numclasses}")
-            model_ft.load_state_dict(model_state)
-            print(f"Loading checkpoint: {args.checkpoint}")
+    model_ft, model_classnames, numclasses, classmap = create_model(args.model_name, args.model_type, args.classmap, args.checkpoint, args.torchhub, device, img_shape)
     model_ft.eval()
 
     newname="Sports Cars"#classmap['n04285008']
     image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"#n04285008_497.JPEG"
-    inference_singleimage(image_path, model_ft, device, classnames=classnames, truelabel=newname, size=args.img_height, top_k=args.topk)
+    inference_singleimage(image_path, model_ft, device, classnames=model_classnames, truelabel=newname, size=args.img_height, top_k=args.topk)
     
 
     #Load dataset
-    dataloaders, dataset_sizes, class_names, img_shape = loadTorchdataset(args.data_name,args.data_type, args.data_path, args.img_height, args.img_width, args.batchsize)
-    print("Class names:", len(class_names))
-    if args.model_type == "ImageNet":
-        class_newnames = classnames #1000 class
-    else:
-        class_newnames=[]
-        for name in class_names: #from the dataset
-            newname=classmap[name]
-            class_newnames.append(newname)
+    dataloaders, dataset_sizes, dataset_classnames, img_shape = loadTorchdataset(args.data_name,args.data_type, args.data_path, args.img_height, args.img_width, args.batchsize)
+    class_newnames = getclass_newnames(args.model_type, classmap, model_classnames, dataset_classnames)
+    
 
     criterion = nn.CrossEntropyLoss()
     if 'val' in dataloaders.keys():
@@ -246,16 +165,6 @@ def main():
         # Create a grid from the images and show them
         img_grid = torchvision.utils.make_grid(images)
         matplotlib_imshow(img_grid, one_channel=False)
-
-        # Default log_dir argument is "runs" - but it's good to be specific
-        # torch.utils.tensorboard.SummaryWriter is imported above
-        # writer = SummaryWriter('outputs/experiment_1')
-        # # Write image data to TensorBoard log dir
-        # writer.add_image('ExperimentImages', img_grid)
-        # writer.flush()
-        # To view, start TensorBoard on the command line with:
-        #   tensorboard --logdir=runs
-        # ...and open a browser tab to http://localhost:6006/
 
         #(batchsize, topk)
         np_indices, np_probs, batchresults = inference_batchimage(images, model_ft, device, classnames=class_newnames, truelabel=labels, size=args.img_height, top_k=args.topk)
@@ -268,43 +177,8 @@ def main():
         test_loss, test_accuracy, labels, probs = test_model(model_ft, dataloaders, class_newnames, criterion, args.batchsize, key = 'val', device=device)
         print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_accuracy:.2f}%')
         plot_confusion_matrix(labels, probs)
-        
-
-        
-
-def collect_incorrect_examples(images, labels, np_indices, topk, classnames=None):
-    if topk>1:
-        top1=np_indices[:,0] #[batchsize, topk]
-    top1=torch.from_numpy(top1)
-    corrects = torch.eq(labels, top1)#compare tensor
-    #get all of the incorrect examples and sort them by descending confidence in their prediction
-    incorrect_examples = []
-
-    for image, label, prob, correct in zip(images, labels, top1, corrects):
-        if not correct:
-            incorrect_examples.append((image, label, prob))
-
-    incorrect_examples.sort(reverse = True, key = lambda x: torch.max(x[2], dim = 0).values)
-    
-    N_IMAGES = min(len(incorrect_examples),25)
-    plot_most_incorrect(incorrect_examples, N_IMAGES, classnames)
 
 
-
-#pip install -U scikit-learn
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import ConfusionMatrixDisplay
-def plot_confusion_matrix(labels, pred_labels, maxlen=200):
-    if len(labels)>maxlen:
-        labels=labels[:maxlen]
-        pred_labels=pred_labels[:maxlen]
-    fig = plt.figure(figsize = (10, 10))
-    ax = fig.add_subplot(1, 1, 1)
-    cm = confusion_matrix(labels, pred_labels)
-    #cm = ConfusionMatrixDisplay(cm, display_labels = range(10))
-    cm = ConfusionMatrixDisplay(cm)
-    cm.plot(values_format = 'd', cmap = 'Blues', ax = ax)
-    fig.savefig('./outputs/confusion_matrix.png')
 
 
 if __name__ == '__main__':
