@@ -15,6 +15,7 @@ import copy
 
 import PIL
 import PIL.Image
+import onnx
 
 # # PyTorch TensorBoard support
 # from torch.utils.tensorboard import SummaryWriter
@@ -25,36 +26,17 @@ from TorchClassifier.Datasetutil.Visutil import visfirstimageinbatch, vistestres
 from TorchClassifier.Datasetutil.Torchdatasetutil import loadTorchdataset
 from TorchClassifier.Datasetutil.Imagenetdata import loadjsontodict, dict2array, preprocess_image, preprocess_imagecv2
 from TorchClassifier.myTorchModels.TorchCNNmodels import createTorchCNNmodel, createImageNetmodel
-from TorchClassifier.TrainValUtils import create_model, test_model, postfilter, \
-    model_inference, inference_singleimage, inference_batchimage, collect_incorrect_examples, getclass_newnames
+from TorchClassifier.TrainValUtils import test_model
+# from TFClassifier.Datasetutil.TFdatasetutil import loadTFdataset #loadtfds, loadkerasdataset, loadimagefolderdataset
+# from TFClassifier.myTFmodels.CNNsimplemodels import createCNNsimplemodel
+# from TFClassifier.Datasetutil.Visutil import plot25images, plot9imagesfromtfdataset, plot_history
+# from TFClassifier.myTFmodels.optimizer_factory import build_learning_rate, setupTensorboardWriterforLR
 
 model = None 
 device = None
 # import logger
 
 os.environ['TORCH_HOME'] = '/data/cmpe249-fa22/torchhome/' #setting the environment variable
-
-#Tiny Imagenet evaluation
-#python myTorchEvaluator.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' 
-# --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'resnet50'
-# --checkpoint 'outputs/tiny-imagenet-200_resnet50_0328/checkpoint.pth.tar'
-# --classmap 'TorchClassifier/Datasetutil/tinyimagenet_idmap.json'
-#image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"
-
-#imagenet_blurred
-#python myTorchEvaluator.py --data_name 'imagenet_blurred' --data_type 'trainonly' 
-# --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'resnet50'
-# --model_type 'ImageNet'
-# --classmap 'TorchClassifier/Datasetutil/imagenet1000id2label.json'
-#image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"
-
-#imagenet_blurred
-#python myTorchEvaluator.py --data_name 'imagenet_blurred' --data_type 'trainonly' 
-# --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'deit_base_patch16_224'
-# --model_type 'ImageNet' --torchhub 'facebookresearch/deit:main'
-# --classmap 'TorchClassifier/Datasetutil/imagenet1000id2label.json'
-#Test Accuracy (Overall): 80% (40219/49997)
-# Test Loss: 0.895 | Test Acc: 80.44%
 
 
 parser = configargparse.ArgParser(description='myTorchClassify')
@@ -114,6 +96,70 @@ parser.add_argument('--reproducible', type=bool, default=False,
 args = parser.parse_args()
 
 
+def postfilter(indices, probs, classnames=None, min_threshold=0.1):
+    batchsize=indices.shape[0]
+    resultlen=indices.shape[1]
+    batchresults=[]
+    for batch in range(batchsize):
+        topkresult=[] #for single image
+        for i in range(resultlen):
+            oneresult={}
+            if probs[batch][i] > min_threshold:
+                idx=indices[batch][i]
+                oneresult['class_idx']= idx
+                oneresult['confidence']= probs[batch][i]
+                if classnames is not None and len(classnames)>idx:
+                    oneresult['classname']=classnames[idx]
+            topkresult.append(oneresult)
+        batchresults.append(topkresult)
+    return batchresults
+
+def model_inference(model, img_batch, top_k):
+    output = model(img_batch) #torch.Size([batchsize, classlen])
+    if type(output) is tuple: #model may output multiple tensors as tuple
+        output, _ = output
+    output_prob = output.softmax(-1) #convert logits to probability for dim = -1
+    output_prob, indices = output_prob.topk(top_k) #[256,batchsize]
+    np_indices = indices.cpu().numpy() #(batchsize, 5)
+    np_probs = output_prob.cpu().numpy()
+    return np_indices, np_probs
+
+def inference_singleimage(image_path, model, device, classnames=None, truelabel=None, size=224, top_k=5, min_threshold=0.1):
+    #img_batch = preprocess_imagecv2(image_path, imagesize=size)
+    img_batch = preprocess_image(image_path, imagesize=size)
+    img_batch = img_batch.to(device)
+    
+    with torch.no_grad():
+        np_indices, np_probs = model_inference(model, img_batch, top_k)
+        batchresults = postfilter(np_indices, np_probs, classnames=classnames, min_threshold=min_threshold)
+    visfirstimageinbatch(img_batch, batchresults, classnames, truelabel)
+
+def inference_batchimage(img_batch, model, device, classnames=None, truelabel=None, size=224, top_k=5, min_threshold=0.1):
+    img_batch = img_batch.to(device)
+    with torch.no_grad():
+        np_indices, np_probs = model_inference(model, img_batch, top_k)
+        batchresults = postfilter(np_indices, np_probs, classnames=classnames, min_threshold=min_threshold)
+    #visfirstimageinbatch(img_batch, batchresults, classnames, truelabel)
+    return np_indices, np_probs, batchresults
+
+def prepare_inputs(dataloader, device, numbatch=10):
+    """load sample inputs to device"""
+    inputs = []
+    for batch in dataloader:
+        if type(batch) is torch.Tensor:
+            batch_d = batch.to(device)
+            batch_d = (batch_d, )
+            inputs.append(batch_d)
+        else:
+            batch_d = []
+            for x in batch:
+                assert type(x) is torch.Tensor, "input is not a tensor"
+                batch_d.append(x.to(device))
+            batch_d = tuple(batch_d)
+            inputs.append(batch_d)
+        if len(inputs)>numbatch:
+            return inputs
+    return inputs
 
 def main():
     print("Torch Version: ", torch.__version__)
@@ -144,42 +190,57 @@ def main():
 
     img_shape=[3, args.img_height, args.img_width] #[channels, height, width] in pytorch
 
-    model_ft, model_classnames, numclasses, classmap = create_model(args.model_name, args.model_type, args.classmap, args.checkpoint, args.torchhub, device, img_shape)
+    #Load class map
+    classmap=loadjsontodict(args.classmap)
+    #Create model
+    if args.model_type == "ImageNet":
+        model_ft, classnames, numclasses, preprocess = createImageNetmodel(args.model_name, args.torchhub)
+        model_ft = model_ft.to(device)
+        if classnames is None:
+            classnames=dict2array(classmap)
+            numclasses=len(classmap)
+    else:
+        classnames=dict2array(classmap)
+        numclasses=len(classmap)
+
+        model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape)
+        model_ft = model_ft.to(device)
+        if args.checkpoint and os.path.isfile(args.checkpoint):
+            checkpoint = torch.load(args.checkpoint, map_location=device)
+            state_dict_key = ''
+            if isinstance(checkpoint, dict):
+                if 'state_dict' in checkpoint:
+                    state_dict_key = 'state_dict'
+                elif 'model' in checkpoint:
+                    state_dict_key = 'model'
+            model_state=checkpoint[state_dict_key]
+            size=model_state['fc.bias'].shape
+            print(f"Output size in model: {size[0]}, numclasses: {numclasses}")
+            model_ft.load_state_dict(model_state)
+            print(f"Loading checkpoint: {args.checkpoint}")
     model_ft.eval()
 
     newname="Sports Cars"#classmap['n04285008']
     image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"#n04285008_497.JPEG"
-    inference_singleimage(image_path, model_ft, device, classnames=model_classnames, truelabel=newname, size=args.img_height, top_k=args.topk)
+    #inference_singleimage(image_path, model_ft, device, classnames=classnames, truelabel=newname, size=args.img_height, top_k=args.topk)
     
-
-    #Load dataset
-    dataloaders, dataset_sizes, dataset_classnames, img_shape = loadTorchdataset(args.data_name,args.data_type, args.data_path, args.img_height, args.img_width, args.batchsize)
-    class_newnames = getclass_newnames(args.model_type, classmap, model_classnames, dataset_classnames)
+    #inputs = prepare_inputs(dataloaders['val'], device)
+    inputs = preprocess_image(image_path, imagesize=args.img_height)
+    inputs = inputs.to(device)
+    ONNX_FILE_PATH = os.path.join(args.save_path, args.model_name+'.onnx')
+    with torch.no_grad():
+        # torch.onnx.export(model_ft, inputs, ONNX_FILE_PATH, input_names=['input'],
+        #           output_names=['output'], export_params=True)
+        torch.onnx.export(model_ft,
+                          inputs,
+                          ONNX_FILE_PATH,
+                          verbose=True,
+                          opset_version=13,
+                          do_constant_folding=True)
     
-
-    criterion = nn.CrossEntropyLoss()
-    if 'val' in dataloaders.keys():
-        val_loader=dataloaders['val']
-        # obtain one batch of validation images
-        images, labels = next(iter(val_loader)) #[32, 3, 224, 224]
-        # Create a grid from the images and show them
-        img_grid = torchvision.utils.make_grid(images)
-        matplotlib_imshow(img_grid, one_channel=False)
-
-        #(batchsize, topk)
-        np_indices, np_probs, batchresults = inference_batchimage(images, model_ft, device, classnames=class_newnames, truelabel=labels, size=args.img_height, top_k=args.topk)
-
-        vistestresult(images, labels, np_indices[:,0], class_newnames, args.save_path)
-        collect_incorrect_examples(images, labels, np_indices, args.topk, classnames=class_newnames)
-
-
-        #Start complete accuracy evaluation
-        test_loss, test_accuracy, labels, probs = test_model(model_ft, dataloaders, class_newnames, criterion, args.batchsize, key = 'val', device=device)
-        print(f'Test Loss: {test_loss:.3f} | Test Acc: {test_accuracy:.2f}%')
-        plot_confusion_matrix(labels, probs)
-
-
-
+    #check the model
+    onnx_model = onnx.load(ONNX_FILE_PATH)
+    onnx.checker.check_model(onnx_model)
 
 if __name__ == '__main__':
     main()

@@ -9,7 +9,44 @@ import torch.nn.functional as F
 
 from TorchClassifier.myTorchModels.CustomResNet import setupCustomResNet
 
-def createTorchCNNmodel(name, numclasses, img_shape):
+#old approach
+# model_names = sorted(name for name in models.__dict__
+#     if name.islower() and not name.startswith("__")
+#     and callable(models.__dict__[name]))
+# print("Torch buildin models:", model_names)
+
+#new approach: https://pytorch.org/blog/easily-list-and-initialize-models-with-new-apis-in-torchvision/
+from torchvision.models import get_model, get_model_weights, get_weight, list_models
+#print("Torch buildin models:", list_models())
+model_names=list_models(module=torchvision.models)
+#print("Torchvision buildin models:", model_names)
+
+# from torchvision.models import get_model, get_model_weights, get_weight, list_models
+def createImageNetmodel(model_name, torchhub=None):
+    if model_name in model_names:
+        # Step 1: Initialize model with the best available weights
+        weights_enum = get_model_weights(model_name)
+        weights = weights_enum.IMAGENET1K_V1
+        #print([weight for weight in weights_enum])
+        #weights = get_weight("ResNet50_Weights.IMAGENET1K_V2")#ResNet50_Weights.DEFAULT
+        currentmodel=get_model(model_name, weights=weights)#weights="DEFAULT"
+        #currentmodel.eval()
+        # Step 2: Initialize the inference transforms
+        preprocess = weights.transforms()#preprocess.crop_size
+        classes = weights.meta["categories"]
+        # Step 3: Apply inference preprocessing transforms
+        #batch = preprocess(img).unsqueeze(0)
+        numclasses = len(classes)
+        return currentmodel, classes, numclasses, preprocess
+    elif torchhub is not None:
+        #'deit_base_patch16_224'
+        currentmodel = torch.hub.load('facebookresearch/deit:main', model_name, pretrained=True)
+        return currentmodel, None, 1000, None #.num_classes
+        # print("Model's state_dict:") #
+        # for param_tensor in currentmodel.state_dict():
+        #     print(param_tensor, "\t", currentmodel.state_dict()[param_tensor].size())
+
+def createTorchCNNmodel(name, numclasses, img_shape, pretrained=True):
     if name=='cnnmodel1':
         return create_cnnmodel1(numclasses, img_shape)
     elif name=='mlpmodel1':
@@ -26,6 +63,9 @@ def createTorchCNNmodel(name, numclasses, img_shape):
         return create_resnetmodel1(numclasses, img_shape)
     elif name=='customresnet':
         return setupCustomResNet(numclasses, 'resnet50')
+    elif name in model_names:
+        #return models.__dict__[name](pretrained=pretrained)
+        return create_torchvisionmodel(name, numclasses, pretrained)
 
 def create_vggmodel1(numclasses, img_shape):
     # Load the pretrained model from pytorch
@@ -376,3 +416,20 @@ def create_resnetmodel1(numclasses, img_shape):
     # Alternatively, it can be generalized to nn.Linear(num_ftrs, len(class_names)).
     model_ft.fc = nn.Linear(num_ftrs, numclasses)
     return model_ft
+
+#https://pytorch.org/vision/stable/models.html
+def create_torchvisionmodel(name, numclasses, pretrained):
+    if pretrained==True:
+        print("=> using torchvision pre-trained model '{}'".format(name))
+        #model = models.__dict__[name](weights="IMAGENET1K_V2") #(pretrained=True)
+        model = get_model(name, weights="DEFAULT")
+    else:
+        print("=> using torchvision model '{}'".format(name))
+        #model = models.__dict__[name](weights=None)
+        model = get_model(name, weights=None)
+    # for param in model.parameters():
+    #     param.requires_grad = False
+    # Parameters of newly constructed modules have requires_grad=True by default
+    num_ftrs = model.fc.in_features 
+    model.fc = nn.Linear(num_ftrs, numclasses) #new fully connected layer
+    return model

@@ -14,11 +14,16 @@ print(cifar_testset)
 
 mnist_testset = datasets.MNIST(root='/data/cmpe249-fa22/torchvisiondata/', train=False, download=True, transform=None)
 
-
-#Download model
-os.environ['TORCH_HOME'] = '/data/cmpe249-fa22/torchhome/' #setting the environment variable
-resnet18 = torchvision.models.resnet18(pretrained=True)
-print(resnet18)
-resnet50 = torchvision.models.resnet50(pretrained=True)
-print(resnet50)
-#Downloading: "https://download.pytorch.org/models/resnet50-19c8e357.pth" to /data/cmpe249-fa22/torchhome/hub/checkpoints/resnet50-19c8e357.pth
+mytorchvisiondata='/data/cmpe249-fa22/torchvisiondata/'
+training_data = datasets.FashionMNIST(
+    root=mytorchvisiondata,
+    train=True,
+    download=True,
+    transform=None,
+)
+test_data = datasets.FashionMNIST(
+    root=mytorchvisiondata,
+    train=False,
+    download=True,
+    transform=None,
+)
