@@ -29,6 +29,12 @@ If you went to uninstall the package, perform the following step
   * [myTorchEvaluator.py](./TorchClassifier/myTorchEvaluator.py): Pytorch model evaluation code 
 
 # PytorchClassifier (New)
+## Test CIFAR10:
+```bash
+python myTorchTrainer.py --data_name 'CIFAR10' --data_type 'torchvisiondataset' --data_path r"E:\Dataset" --model_name 'cnnmodel1' --learningratename 'ConstantLR' --optimizer 'SGD'
+```
+
+## ImageNet
 Download ImageNet dataset (tiny-imagenet-200, ImageNet-Blur, imagenet21k_resized.tar.gz) from https://image-net.org. 
 
 Test train based on tiny-imagenet-200 dataset
@@ -58,7 +64,8 @@ Test Accuracy (Overall): 51% (10218/20000)
 
 Complete the ImageNet-Blur training in HPC2, trained model saved in "outputs/imagenet_blurred_resnet50_0328"
 ```bash
-python myTorchTrainer.py
+python myTorchTrainer.py --data_name 'imagenet_blurred' --data_type 'trainonly' --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'resnet50' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
+
 ...
 Test Accuracy (Overall): 61% (158825/256213)
 
