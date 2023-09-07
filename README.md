@@ -28,6 +28,43 @@ If you went to uninstall the package, perform the following step
   * [myTorchTrainer.py](./TorchClassifier/myTorchTrainer.py): Pytorch main training code
   * [myTorchEvaluator.py](./TorchClassifier/myTorchEvaluator.py): Pytorch model evaluation code 
 
+# PytorchClassifier (New)
+Download ImageNet dataset (tiny-imagenet-200, ImageNet-Blur, imagenet21k_resized.tar.gz) from https://image-net.org. 
+
+Test train based on tiny-imagenet-200 dataset
+
+```bash
+python myTorchTrainer.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path r"E:\Dataset\ImageNet\tiny-imagenet-200" --model_name 'resnetmodel1' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
+
+Epoch 39/39
+----------
+train Loss: 0.9043 Acc: 0.7769
+val Loss: 2.1729 Acc: 0.5147
+
+Training complete in 133m 43s
+Best val Acc: 0.517000
+Test Loss: 0.437732
+...
+
+Test Accuracy of n09193705: 55% (55/100)
+Test Accuracy of n09246464: 42% (43/101)
+Test Accuracy of n09256479: 58% (64/110)
+Test Accuracy of n09332890: 37% (42/113)
+Test Accuracy of n09428293: 47% (43/91)
+Test Accuracy of n12267677: 47% (47/100)
+
+Test Accuracy (Overall): 51% (10218/20000)
+```
+
+Complete the ImageNet-Blur training in HPC2, trained model saved in "outputs/imagenet_blurred_resnet50_0328"
+```bash
+python myTorchTrainer.py
+...
+Test Accuracy (Overall): 61% (158825/256213)
+
+```
+
+
 # Tensorflow Lite
 * Tensorflow lite guide [link](https://www.tensorflow.org/lite/guide)
 * [exportTFlite](\TFClassifier\exportTFlite.py) file exports model to TFlite format.
