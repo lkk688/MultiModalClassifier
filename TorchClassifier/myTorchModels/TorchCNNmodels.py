@@ -9,6 +9,14 @@ import torch.nn.functional as F
 
 from TorchClassifier.myTorchModels.CustomResNet import setupCustomResNet
 
+# Try to get torchinfo, install it if it doesn't work
+try:
+    from torchinfo import summary
+except:
+    print("[INFO] Couldn't find torchinfo... installing it.")
+    # !pip install -q torchinfo
+    # from torchinfo import summary
+
 #old approach
 # model_names = sorted(name for name in models.__dict__
 #     if name.islower() and not name.startswith("__")
@@ -20,6 +28,22 @@ from torchvision.models import get_model, get_model_weights, get_weight, list_mo
 #print("Torch buildin models:", list_models())
 model_names=list_models(module=torchvision.models)
 #print("Torchvision buildin models:", model_names)
+
+# Torchvision buildin models: ['alexnet', 'convnext_base', 'convnext_large', 'convnext_small', 'convnext_tiny', \
+#                              'densenet121', 'densenet161', 'densenet169', 'densenet201', 'efficientnet_b0', \
+#                              'efficientnet_b1', 'efficientnet_b2', 'efficientnet_b3', 'efficientnet_b4', 'efficientnet_b5', \
+#                              'efficientnet_b6', 'efficientnet_b7', 'efficientnet_v2_l', 'efficientnet_v2_m', \
+#                              'efficientnet_v2_s', 'googlenet', 'inception_v3', 'maxvit_t', 'mnasnet0_5', 'mnasnet0_75', \
+#                             'mnasnet1_0', 'mnasnet1_3', 'mobilenet_v2', 'mobilenet_v3_large', 'mobilenet_v3_small', \
+#                             'regnet_x_16gf', 'regnet_x_1_6gf', 'regnet_x_32gf', 'regnet_x_3_2gf', 'regnet_x_400mf', \
+#                             'regnet_x_800mf', 'regnet_x_8gf', 'regnet_y_128gf', 'regnet_y_16gf', 'regnet_y_1_6gf', \
+#                             'regnet_y_32gf', 'regnet_y_3_2gf', 'regnet_y_400mf', 'regnet_y_800mf', \
+#                             'regnet_y_8gf', 'resnet101', 'resnet152', 'resnet18', 'resnet34', 'resnet50', \
+#                             'resnext101_32x8d', 'resnext101_64x4d', 'resnext50_32x4d', 'shufflenet_v2_x0_5', \
+#                             'shufflenet_v2_x1_0', 'shufflenet_v2_x1_5', 'shufflenet_v2_x2_0', 'squeezenet1_0', \
+#                             'squeezenet1_1', 'swin_b', 'swin_s', 'swin_t', 'swin_v2_b', 'swin_v2_s', 'swin_v2_t',\
+#                             'vgg11', 'vgg11_bn', 'vgg13', 'vgg13_bn', 'vgg16', 'vgg16_bn', 'vgg19', 'vgg19_bn', 'vit_b_16', 
+#                             'vit_b_32', 'vit_h_14', 'vit_l_16', 'vit_l_32', 'wide_resnet101_2', 'wide_resnet50_2']
 
 # from torchvision.models import get_model, get_model_weights, get_weight, list_models
 def createImageNetmodel(model_name, torchhub=None):
@@ -427,9 +451,30 @@ def create_torchvisionmodel(name, numclasses, pretrained):
         print("=> using torchvision model '{}'".format(name))
         #model = models.__dict__[name](weights=None)
         model = get_model(name, weights=None)
-    # for param in model.parameters():
-    #     param.requires_grad = False
+    
+    # Print a summary using torchinfo (uncomment for actual output)
+    summary(model=model, 
+            input_size=(32, 3, 224, 224), # make sure this is "input_size", not "input_shape"
+            # col_names=["input_size"], # uncomment for smaller output
+            col_names=["input_size", "output_size", "num_params", "trainable"],
+            col_width=20,
+            row_settings=["var_names"]
+    ) 
+    
+    
+    for param in model.parameters():
+        param.requires_grad = False
+    
+    print(model.heads.head.in_features)
+    num_ftrs = model.heads.head.in_features #768
+    # Recreate the classifier layer and seed it to the target device
+    model.heads = torch.nn.Sequential(
+        torch.nn.Dropout(p=0.2, inplace=True), 
+        torch.nn.Linear(in_features=num_ftrs, 
+                        out_features=numclasses, # same number of output units as our number of classes
+                        bias=True))#.to('cuda')
+
     # Parameters of newly constructed modules have requires_grad=True by default
-    num_ftrs = model.fc.in_features 
-    model.fc = nn.Linear(num_ftrs, numclasses) #new fully connected layer
+    # num_ftrs = model.fc.in_features 
+    # model.fc = nn.Linear(num_ftrs, numclasses) #new fully connected layer
     return model

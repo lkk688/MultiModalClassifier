@@ -73,8 +73,8 @@ parser.add_argument('--img_width', type=int, default=224,
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='resnet50', choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1'],
-                    help='the network')
+parser.add_argument('--model_name', default='resnet50',
+                    help='the network') #choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1']
 parser.add_argument('--model_type', default='ImageNet', choices=['ImageNet', 'custom'],
                     help='the network')
 parser.add_argument('--torchhub', default='facebookresearch/deit:main',
@@ -396,15 +396,15 @@ def main():
     numclasses =len(class_names)
     model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape, args.pretrained)
 
-    # add_graph() will trace the sample input through your model,
-    # and render it as a graph.
-    tensorboard_writer.add_graph(model_ft, images)
-    tensorboard_writer.flush()
-
     criterion = nn.CrossEntropyLoss()
 
     model_ft = model_ft.to(device)
     criterion = criterion.to(device)
+
+    # add_graph() will trace the sample input through your model,
+    # and render it as a graph.
+    # tensorboard_writer.add_graph(model_ft, images)
+    # tensorboard_writer.flush()
 
     # Observe that all parameters are being optimized, 
     optimizer_ft=gettorchoptim(args.optimizer, model_ft, lr=args.lr, momentum=args.momentum,

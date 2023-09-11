@@ -40,9 +40,13 @@ Download ImageNet dataset (tiny-imagenet-200, ImageNet-Blur, imagenet21k_resized
 Test train based on tiny-imagenet-200 dataset
 
 ```bash
-(mycondapy310) [010796032@g4 TorchClassifier]$ python myTorchTrainer.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'resnetmodel1' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
+(mycondapy310) [010796032@g4 TorchClassifier]$ python myTorchTrainer.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'resnetmodel1' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
 ```
 Trained model in "TorchClassifier/outputs/tiny-imagenet-200_resnetmodel1_0910"
+
+```bash
+(mycondapy310) [010796032@g4 TorchClassifier]$ python myTorchTrainer.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'vit_b_32' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
+```
 
 Complete the ImageNet-Blur training in HPC2, trained model saved in "outputs/imagenet_blurred_resnet50_0328"
 ```bash
@@ -64,6 +68,18 @@ Imagenet_blurred evaluation
   $ python myTorchEvaluator.py --data_name 'imagenet_blurred' --data_type 'trainonly' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'resnet50' --model_type 'ImageNet' --classmap 'TorchClassifier/Datasetutil/imagenet1000id2label.json' --gpuid 0
 #image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"
 
+```
+
+```bash
+  $ python myTorchEvaluator.py --data_name 'imagenet_blurred' --data_type 'trainonly' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'vit_b_32' --model_type 'ImageNet' --classmap 'TorchClassifier/Datasetutil/imagenet1000id2label.json' --gpuid 0
+#image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"
+
+```
+
+```bash
+(mycondapy310) [010796032@g4 TorchClassifier]$ python myTorchEvaluator.py --data_name 'imagenet_blurred' --data_type 'trainonly' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'vit_b_32' --model_type 'ImageNet' --classmap 'TorchClassifier/Datasetutil/imagenet1000id2label.json' --gpuid 0
+
+Test Accuracy (Overall): 77% (198655/256213)
 ```
 
 #image_path="/data/cmpe249-fa23/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"

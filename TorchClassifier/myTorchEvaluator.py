@@ -74,8 +74,8 @@ parser.add_argument('--topk', type=int, default=5,
 parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
-parser.add_argument('--model_name', default='deit_base_patch16_224', choices=['resnet50', 'mlpmodel1', 'lenet', 'resnetmodel1', 'vggmodel1', 'cnnmodel1'],
-                    help='the network')
+parser.add_argument('--model_name', default='deit_base_patch16_224',
+                    help='the network') #choices=['resnet50', 'mlpmodel1', 'lenet', 'resnetmodel1', 'vggmodel1', 'cnnmodel1']
 parser.add_argument('--model_type', default='ImageNet', choices=['ImageNet', 'custom'],
                     help='the network')
 parser.add_argument('--torchhub', default='facebookresearch/deit:main',
