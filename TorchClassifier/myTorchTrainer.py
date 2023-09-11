@@ -10,10 +10,10 @@ import numpy as np
 import torchvision
 from torchvision import datasets, models, transforms
 import matplotlib
-matplotlib.use('TkAgg',force=True)
-from matplotlib import pyplot as plt
-print("Switched to:",matplotlib.get_backend())
-#import matplotlib.pyplot as plt
+# matplotlib.use('TkAgg',force=True)
+# from matplotlib import pyplot as plt
+# print("Switched to:",matplotlib.get_backend())
+import matplotlib.pyplot as plt
 import time
 import os
 import copy
@@ -24,7 +24,7 @@ import shutil
 import PIL
 import PIL.Image
 
-os.environ['TORCH_HOME'] = '/data/cmpe249-fa22/torchhome/' #setting the environment variable
+os.environ['TORCH_HOME'] = '/data/cmpe249-fa23/torchhome/' #setting the environment variable
 
 CHECKPOINT_PATH="./outputs"
 CHECKPOINT_file=os.path.join(CHECKPOINT_PATH, 'checkpoint.pth.tar')
@@ -64,7 +64,7 @@ parser.add_argument('--data_name', type=str, default='imagenet_blurred',
                     help='data name: imagenet_blurred, tiny-imagenet-200, hymenoptera_data, CIFAR10, MNIST, flower_photos')
 parser.add_argument('--data_type', default='trainonly', choices=['trainonly','trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
                     help='the type of data') 
-parser.add_argument('--data_path', type=str, default="/data/cmpe249-fa22/ImageClassData",
+parser.add_argument('--data_path', type=str, default="/data/cmpe249-fa23/ImageClassData",
                     help='path to get data') #/Developer/MyRepo/ImageClassificationData; r"E:\Dataset\ImageNet\tiny-imagenet-200"
 parser.add_argument('--img_height', type=int, default=224,
                     help='resize to img height, 224')
@@ -116,7 +116,7 @@ parser.add_argument('--ddp', default=False, type=bool,
 #                     help='use TPU')
 # parser.add_argument('--MIXED_PRECISION', type=bool, default=False,
 #                     help='use MIXED_PRECISION')
-parser.add_argument('--TAG', default='0328',
+parser.add_argument('--TAG', default='0910',
                     help='setup the experimental TAG to differentiate different running results')
 parser.add_argument('--reproducible', type=bool, default=False,
                     help='get reproducible results we can set the random seed for Python, Numpy and PyTorch')

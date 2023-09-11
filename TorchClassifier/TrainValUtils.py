@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from TorchClassifier.Datasetutil.Visutil import imshow
 import numpy as np
 import time
+from tqdm import tqdm
 
 def calculate_accuracy(y_pred, y):
     top_pred = y_pred.argmax(1, keepdim = True)
@@ -60,6 +61,8 @@ def test_model(model, dataloaders, class_names, criterion, batch_size, key='test
     end = time.time()
     labels = []
     probs = []
+    print("Total len of test loader:", len(test_loader))
+    pbar = tqdm(desc='Evaluation:', total = len(test_loader))
     with torch.no_grad():
         for data, target in test_loader:
             batchindex = batchindex +1
@@ -98,6 +101,8 @@ def test_model(model, dataloaders, class_names, criterion, batch_size, key='test
                     label = target.data[i]
                     class_correct[label] += correct[i].item()
                     class_total[label] += 1
+            
+            pbar.update(1)
     
     labels = torch.cat(labels, dim = 0)
     probs = torch.cat(probs, dim = 0)
@@ -347,12 +352,16 @@ def create_model(model_name, model_type, classmap, checkpoint=None, torchhub=Non
 def getclass_newnames(model_type, classmap, model_classnames, dataset_classnames):
     print("Dataset Class names:", len(dataset_classnames))
     if model_type == "ImageNet":
-        class_newnames = model_classnames #1000 class
+        if model_classnames:
+            class_newnames = model_classnames #1000 class
+        else:
+            class_newnames = dataset_classnames #1000 class
     else:
         class_newnames=[]
         for name in dataset_classnames: #from the dataset
             newname=classmap[name]
             class_newnames.append(newname)
+    return class_newnames
 
 def model_inference(model, img_batch, top_k):
     output = model(img_batch) #torch.Size([batchsize, classlen])

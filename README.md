@@ -34,42 +34,39 @@ If you went to uninstall the package, perform the following step
 python myTorchTrainer.py --data_name 'CIFAR10' --data_type 'torchvisiondataset' --data_path r"E:\Dataset" --model_name 'cnnmodel1' --learningratename 'ConstantLR' --optimizer 'SGD'
 ```
 
-## ImageNet
+## ImageNet Training
 Download ImageNet dataset (tiny-imagenet-200, ImageNet-Blur, imagenet21k_resized.tar.gz) from https://image-net.org. 
 
 Test train based on tiny-imagenet-200 dataset
 
 ```bash
-python myTorchTrainer.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path r"E:\Dataset\ImageNet\tiny-imagenet-200" --model_name 'resnetmodel1' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
-
-Epoch 39/39
-----------
-train Loss: 0.9043 Acc: 0.7769
-val Loss: 2.1729 Acc: 0.5147
-
-Training complete in 133m 43s
-Best val Acc: 0.517000
-Test Loss: 0.437732
-...
-
-Test Accuracy of n09193705: 55% (55/100)
-Test Accuracy of n09246464: 42% (43/101)
-Test Accuracy of n09256479: 58% (64/110)
-Test Accuracy of n09332890: 37% (42/113)
-Test Accuracy of n09428293: 47% (43/91)
-Test Accuracy of n12267677: 47% (47/100)
-
-Test Accuracy (Overall): 51% (10218/20000)
+(mycondapy310) [010796032@g4 TorchClassifier]$ python myTorchTrainer.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'resnetmodel1' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
 ```
+Trained model in "TorchClassifier/outputs/tiny-imagenet-200_resnetmodel1_0910"
 
 Complete the ImageNet-Blur training in HPC2, trained model saved in "outputs/imagenet_blurred_resnet50_0328"
 ```bash
-python myTorchTrainer.py --data_name 'imagenet_blurred' --data_type 'trainonly' --data_path "/data/cmpe249-fa22/ImageClassData" --model_name 'resnet50' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
+python myTorchTrainer.py --data_name 'imagenet_blurred' --data_type 'trainonly' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'resnet50' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
 
 ...
 Test Accuracy (Overall): 61% (158825/256213)
 
 ```
+
+# ImageNet Evaluation
+
+Tiny Imagenet evaluation
+```bash
+  $ python myTorchEvaluator.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'resnet50' --checkpoint 'outputs/tiny-imagenet-200_resnet50_0328/checkpoint.pth.tar' --classmap 'TorchClassifier/Datasetutil/tinyimagenet_idmap.json' --gpuid 0
+```
+Imagenet_blurred evaluation
+```bash
+  $ python myTorchEvaluator.py --data_name 'imagenet_blurred' --data_type 'trainonly' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'resnet50' --model_type 'ImageNet' --classmap 'TorchClassifier/Datasetutil/imagenet1000id2label.json' --gpuid 0
+#image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"
+
+```
+
+#image_path="/data/cmpe249-fa23/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"
 
 
 # Tensorflow Lite

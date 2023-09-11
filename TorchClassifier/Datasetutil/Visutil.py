@@ -88,11 +88,17 @@ def visbatchimage(images, labels, classes):
 
 def vistestresult(images, labels, preds, classes, path='./outputs/'):
     #images.numpy()
+    print("labels:", labels)
+    print("preds:", preds)
+    print("preds len:", len(preds))
+    print("classes:", classes)
+    
 
     # plot the images in the batch, along with predicted and true labels
     fig = plt.figure(figsize=(25, 4))
-    for idx in np.arange(20): #2*10 Image array
-        ax = fig.add_subplot(2, int(20/2), idx+1, xticks=[], yticks=[])
+    numfigs = min(20, len(preds))
+    for idx in np.arange(numfigs): #2*10 Image array
+        ax = fig.add_subplot(2, int(numfigs/2), idx+1, xticks=[], yticks=[])
         imshowhelper(images.cpu()[idx])
         ax.set_title("{} ({})".format(classes[preds[idx]], classes[labels[idx]]), color=("green" if preds[idx]==labels[idx].item() else "red"))
     figsavepath=os.path.join(path, 'torchtestresultimage.png')

@@ -204,7 +204,7 @@ def loadimagefoldertrainonlydataset(name, path, split=['train']):
 
     class_names = train_data.classes
     print('Number of classes: ', len(class_names))
-    print('Classes: ', class_names)
+    #print('Classes: ', class_names)
 
 
     visbatchimage(images, labels, class_names)

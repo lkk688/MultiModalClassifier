@@ -1,4 +1,5 @@
 from __future__ import print_function, division
+from scipy.fft import fft, ifft, fftfreq, fftshift
 import configargparse #pip install configargparse
 
 import torch
@@ -32,7 +33,7 @@ model = None
 device = None
 # import logger
 
-os.environ['TORCH_HOME'] = '/data/cmpe249-fa22/torchhome/' #setting the environment variable
+os.environ['TORCH_HOME'] = '/data/cmpe249-fa23/torchhome/' #setting the environment variable
 
 #Tiny Imagenet evaluation
 #python myTorchEvaluator.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' 
@@ -62,7 +63,7 @@ parser.add_argument('--data_name', type=str, default='imagenet_blurred',
                     help='data name: imagenet_blurred, tiny-imagenet-200, hymenoptera_data, CIFAR10, MNIST, flower_photos')
 parser.add_argument('--data_type', default='valonly', choices=['trainonly', 'trainvalfolder', 'traintestfolder', 'torchvisiondataset'],
                     help='the type of data') 
-parser.add_argument('--data_path', type=str, default="/data/cmpe249-fa22/ImageClassData",
+parser.add_argument('--data_path', type=str, default="/data/cmpe249-fa23/ImageClassData",
                     help='path to get data') #/Developer/MyRepo/ImageClassificationData
 parser.add_argument('--img_height', type=int, default=224,
                     help='resize to img height, 224')
@@ -99,7 +100,7 @@ parser.add_argument('--GPU', type=bool, default=True,
                     help='use GPU')
 parser.add_argument('--TPU', type=bool, default=False,
                     help='use TPU')
-parser.add_argument('--gpuid', default=1, type=int,
+parser.add_argument('--gpuid', default=0, type=int,
                     help='GPU id to use.')
 parser.add_argument('--ddp', default=False, type=bool,
                     help='Use multi-processing distributed training.')
@@ -148,14 +149,16 @@ def main():
     model_ft.eval()
 
     newname="Sports Cars"#classmap['n04285008']
-    image_path="/data/cmpe249-fa22/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"#n04285008_497.JPEG"
+    image_path="/data/cmpe249-fa23/ImageClassData/tiny-imagenet-200/train/n04285008/images/n04285008_31.JPEG"#n04285008_497.JPEG"
     inference_singleimage(image_path, model_ft, device, classnames=model_classnames, truelabel=newname, size=args.img_height, top_k=args.topk)
     
 
     #Load dataset
     dataloaders, dataset_sizes, dataset_classnames, img_shape = loadTorchdataset(args.data_name,args.data_type, args.data_path, args.img_height, args.img_width, args.batchsize)
+    print("dataset_classnames:",dataset_classnames) #'n12768682' as names
+    print("model_classnames:",model_classnames) # actual label names
     class_newnames = getclass_newnames(args.model_type, classmap, model_classnames, dataset_classnames)
-    
+    #print("class_newnames:",class_newnames)
 
     criterion = nn.CrossEntropyLoss()
     if 'val' in dataloaders.keys():
@@ -170,6 +173,7 @@ def main():
         np_indices, np_probs, batchresults = inference_batchimage(images, model_ft, device, classnames=class_newnames, truelabel=labels, size=args.img_height, top_k=args.topk)
 
         vistestresult(images, labels, np_indices[:,0], class_newnames, args.save_path)
+        #save 'torchtestresultimage.png' under save_path
         collect_incorrect_examples(images, labels, np_indices, args.topk, classnames=class_newnames)
 
 
