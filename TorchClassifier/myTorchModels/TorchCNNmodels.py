@@ -89,7 +89,8 @@ def createTorchCNNmodel(name, numclasses, img_shape, pretrained=True):
         return setupCustomResNet(numclasses, 'resnet50')
     elif name in model_names:
         #return models.__dict__[name](pretrained=pretrained)
-        return create_torchvisionmodel(name, numclasses, pretrained)
+        #return create_torchvisionmodel(name, numclasses, pretrained)
+        return create_torchvisionmodel(name, numclasses, freezeparameters=True, pretrained=pretrained)
 
 def create_vggmodel1(numclasses, img_shape):
     # Load the pretrained model from pytorch
@@ -442,39 +443,88 @@ def create_resnetmodel1(numclasses, img_shape):
     return model_ft
 
 #https://pytorch.org/vision/stable/models.html
-def create_torchvisionmodel(name, numclasses, pretrained):
-    if pretrained==True:
-        print("=> using torchvision pre-trained model '{}'".format(name))
-        #model = models.__dict__[name](weights="IMAGENET1K_V2") #(pretrained=True)
-        model = get_model(name, weights="DEFAULT")
-    else:
-        print("=> using torchvision model '{}'".format(name))
-        #model = models.__dict__[name](weights=None)
-        model = get_model(name, weights=None)
+# def create_torchvisionmodel(name, numclasses, pretrained):
+#     if pretrained==True:
+#         print("=> using torchvision pre-trained model '{}'".format(name))
+#         #model = models.__dict__[name](weights="IMAGENET1K_V2") #(pretrained=True)
+#         model = get_model(name, weights="DEFAULT")
+#     else:
+#         print("=> using torchvision model '{}'".format(name))
+#         #model = models.__dict__[name](weights=None)
+#         model = get_model(name, weights=None)
     
-    # Print a summary using torchinfo (uncomment for actual output)
-    summary(model=model, 
-            input_size=(32, 3, 224, 224), # make sure this is "input_size", not "input_shape"
-            # col_names=["input_size"], # uncomment for smaller output
-            col_names=["input_size", "output_size", "num_params", "trainable"],
-            col_width=20,
-            row_settings=["var_names"]
-    ) 
+#     # Print a summary using torchinfo (uncomment for actual output)
+#     summary(model=model, 
+#             input_size=(32, 3, 224, 224), # make sure this is "input_size", not "input_shape"
+#             # col_names=["input_size"], # uncomment for smaller output
+#             col_names=["input_size", "output_size", "num_params", "trainable"],
+#             col_width=20,
+#             row_settings=["var_names"]
+#     ) 
     
     
-    for param in model.parameters():
-        param.requires_grad = False
+#     for param in model.parameters():
+#         param.requires_grad = False
     
-    print(model.heads.head.in_features)
-    num_ftrs = model.heads.head.in_features #768
-    # Recreate the classifier layer and seed it to the target device
-    model.heads = torch.nn.Sequential(
-        torch.nn.Dropout(p=0.2, inplace=True), 
-        torch.nn.Linear(in_features=num_ftrs, 
-                        out_features=numclasses, # same number of output units as our number of classes
-                        bias=True))#.to('cuda')
+#     print(model.heads.head.in_features)
+#     num_ftrs = model.heads.head.in_features #768
+#     # Recreate the classifier layer and seed it to the target device
+#     model.heads = torch.nn.Sequential(
+#         torch.nn.Dropout(p=0.2, inplace=True), 
+#         torch.nn.Linear(in_features=num_ftrs, 
+#                         out_features=numclasses, # same number of output units as our number of classes
+#                         bias=True))#.to('cuda')
 
-    # Parameters of newly constructed modules have requires_grad=True by default
-    # num_ftrs = model.fc.in_features 
-    # model.fc = nn.Linear(num_ftrs, numclasses) #new fully connected layer
-    return model
+#     # Parameters of newly constructed modules have requires_grad=True by default
+#     # num_ftrs = model.fc.in_features 
+#     # model.fc = nn.Linear(num_ftrs, numclasses) #new fully connected layer
+#     return model
+
+def create_torchvisionmodel(modulename, numclasses, freezeparameters=True, pretrained=True, dropoutp=0.2):
+    model_names=list_models(module=torchvision.models)
+    if modulename in model_names:
+        if pretrained == True:
+            pretrained_model=get_model(modulename, weights="DEFAULT")
+            # Freeze the base parameters
+            if freezeparameters == True :
+                for parameter in pretrained_model.parameters():
+                    parameter.requires_grad = False
+        else:
+            pretrained_model=get_model(modulename, weights=None)
+        #print(pretrained_model)
+        
+        #display model architecture
+        lastmoduleinlist=list(pretrained_model.named_children())[-1]
+        #print("lastmoduleinlist len:",len(lastmoduleinlist))
+        lastmodulename=lastmoduleinlist[0]
+        print("lastmodulename:",lastmodulename)
+        lastlayer=lastmoduleinlist[-1]
+        if isinstance(lastlayer, nn.Linear):
+            print('Linear layer')
+            newclassifier = nn.Linear(in_features=lastlayer.in_features, out_features=classnum)
+        elif isinstance(lastlayer, nn.Sequential):
+            print('Sequential layer')
+            lastlayerlist=list(lastlayer) #[-1] #last layer
+            #print("lastlayerlist type:",type(lastlayerlist))
+            if isinstance(lastlayerlist, list):
+                #print("your object is a list !")
+                lastlayer=lastlayerlist[-1]
+                newclassifier = torch.nn.Sequential(
+                    torch.nn.Dropout(p=dropoutp, inplace=True), 
+                    torch.nn.Linear(in_features=lastlayer.in_features, 
+                                out_features=numclasses, # same number of output units as our number of classes
+                                bias=True))
+            else:
+                print("Error: Sequential layer is not list:",lastlayer)
+                #newclassifier = nn.Linear(in_features=lastlayer.in_features, out_features=classnum)
+        if lastmodulename=='heads':
+            pretrained_model.heads = newclassifier #.to(device)
+        elif lastmodulename=='classifier':
+            pretrained_model.classifier = newclassifier #.to(device)
+        elif lastmodulename=='fc':
+            pretrained_model.fc = newclassifier #.to(device)
+        else:
+            print('Please check the last module name of the model.')
+        return pretrained_model
+    else:
+        print('Model name not exist.')
