@@ -24,6 +24,13 @@ import shutil
 import PIL
 import PIL.Image
 
+try:
+    from torchinfo import summary
+except:
+    print("[INFO] Couldn't find torchinfo... installing it.")
+    # !pip install -q torchinfo
+    # from torchinfo import summary
+
 os.environ['TORCH_HOME'] = '/data/cmpe249-fa23/torchhome/' #setting the environment variable
 
 CHECKPOINT_PATH="./outputs"
@@ -396,15 +403,24 @@ def main():
     numclasses =len(class_names)
     model_ft = createTorchCNNmodel(args.model_name, numclasses, img_shape, args.pretrained)
 
+        # add_graph() will trace the sample input through your model,
+    # and render it as a graph.
+    tensorboard_writer.add_graph(model_ft, images)
+    tensorboard_writer.flush()
+
     criterion = nn.CrossEntropyLoss()
 
     model_ft = model_ft.to(device)
     criterion = criterion.to(device)
 
-    # add_graph() will trace the sample input through your model,
-    # and render it as a graph.
-    # tensorboard_writer.add_graph(model_ft, images)
-    # tensorboard_writer.flush()
+    # Print a summary using torchinfo (uncomment for actual output)
+    summary(model=model_ft, 
+            input_size=(args.batchsize, 3, args.img_height, args.img_width), # make sure this is "input_size", not "input_shape"
+            # col_names=["input_size"], # uncomment for smaller output
+            col_names=["input_size", "output_size", "num_params", "trainable"],
+            col_width=20,
+            row_settings=["var_names"]
+    ) 
 
     # Observe that all parameters are being optimized, 
     optimizer_ft=gettorchoptim(args.optimizer, model_ft, lr=args.lr, momentum=args.momentum,

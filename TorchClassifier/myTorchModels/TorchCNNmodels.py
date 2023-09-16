@@ -525,6 +525,7 @@ def create_torchvisionmodel(modulename, numclasses, freezeparameters=True, pretr
             pretrained_model.fc = newclassifier #.to(device)
         else:
             print('Please check the last module name of the model.')
+        
         return pretrained_model
     else:
         print('Model name not exist.')
