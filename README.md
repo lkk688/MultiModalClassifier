@@ -45,7 +45,15 @@ Test train based on tiny-imagenet-200 dataset
 Trained model in "TorchClassifier/outputs/tiny-imagenet-200_resnetmodel1_0910"
 
 ```bash
-(mycondapy310) [010796032@g4 TorchClassifier]$ python myTorchTrainer.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'vit_b_32' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD'
+(mycondapy310) [010796032@g4 TorchClassifier]$ python myTorchTrainer.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'vit_b_32' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'SGD' --batchsize 32
+```
+
+```bash
+(mycondapy310) [010796032@g4 TorchClassifier]$ python myTorchTrainer.py --data_name 'tiny-imagenet-200' --data_type 'trainonly' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'vit_b_16' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'Adam' --batchsize 32 --TAG '0910'
+```
+
+```bash
+(mycondapy310) [010796032@g4 TorchClassifier]$ python myTorchTrainer.py --data_name 'flower_photos' --data_type 'traintestfolder' --data_path "/data/cmpe249-fa23/ImageClassData" --model_name 'vit_b_16' --learningratename 'StepLR' --lr 0.1 --momentum 0.9 --wd 1e-4 --optimizer 'Adam' --batchsize 64 --TAG '0916'
 ```
 
 Complete the ImageNet-Blur training in HPC2, trained model saved in "outputs/imagenet_blurred_resnet50_0328"

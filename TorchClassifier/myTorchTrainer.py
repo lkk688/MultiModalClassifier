@@ -90,7 +90,7 @@ parser.add_argument('--resume', default="outputs/imagenet_blurred_resnet50_0328/
                     help='path to latest checkpoint (default: none)')
 parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch'],
                     help='Model Name, default: Pytorch.')
-parser.add_argument('--pretrained', dest='pretrained', action='store_true',
+parser.add_argument('--pretrained', default=True,
                     help='use pre-trained model')
 parser.add_argument('--learningratename', default='StepLR', choices=['StepLR', 'ConstantLR' 'ExponentialLR', 'MultiStepLR', 'OneCycleLR'],
                     help='learning rate name')
@@ -405,8 +405,8 @@ def main():
 
         # add_graph() will trace the sample input through your model,
     # and render it as a graph.
-    tensorboard_writer.add_graph(model_ft, images)
-    tensorboard_writer.flush()
+    # tensorboard_writer.add_graph(model_ft, images)
+    # tensorboard_writer.flush()
 
     criterion = nn.CrossEntropyLoss()
 

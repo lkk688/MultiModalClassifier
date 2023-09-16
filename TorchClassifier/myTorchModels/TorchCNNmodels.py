@@ -487,6 +487,7 @@ def create_torchvisionmodel(modulename, numclasses, freezeparameters=True, pretr
             pretrained_model=get_model(modulename, weights="DEFAULT")
             # Freeze the base parameters
             if freezeparameters == True :
+                print('Freeze parameters')
                 for parameter in pretrained_model.parameters():
                     parameter.requires_grad = False
         else:
