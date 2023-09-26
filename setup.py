@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 with open("README.md", "r") as readme_file:
     readme = readme_file.read()
 
-requirements = ["numpy", "tensorflow", "PIL", "matplotlib"]
+requirements = ["numpy", "tensorflow", "pillow", "matplotlib"]
 
 setup(
     name="MultimodalClassifier",
