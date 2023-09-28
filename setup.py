@@ -15,7 +15,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/lkk688/MultiModalClassifier",
     packages=['TFClassifier'], #find_packages(exclude=['DatasetTools', 'tests', 'data', 'outputs']),
-    install_requires=['numpy'],
+    install_requires=requirements,
     classifiers=[
         "Programming Language :: Python :: 3.8",
     ],
