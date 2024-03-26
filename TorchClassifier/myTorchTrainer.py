@@ -81,7 +81,7 @@ parser.add_argument('--save_path', type=str, default='./outputs/',
                     help='path to save the model')
 # network
 parser.add_argument('--model_name', default='resnet50',
-                    help='the network') #choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1']
+                    help='the network') #choices=['mlpmodel1', 'lenet', 'alexnet', 'resnetmodel1', 'customresnet', 'vggmodel1', 'vggcustom', 'cnnmodel1', 'squeezenetcustom']
 parser.add_argument('--model_type', default='ImageNet', choices=['ImageNet', 'custom'],
                     help='the network')
 parser.add_argument('--torchhub', default='facebookresearch/deit:main',
@@ -92,7 +92,7 @@ parser.add_argument('--arch', default='Pytorch', choices=['Tensorflow', 'Pytorch
                     help='Model Name, default: Pytorch.')
 parser.add_argument('--pretrained', default=True,
                     help='use pre-trained model')
-parser.add_argument('--learningratename', default='StepLR', choices=['StepLR', 'ConstantLR' 'ExponentialLR', 'MultiStepLR', 'OneCycleLR'],
+parser.add_argument('--learningratename', default='StepLR', choices=['StepLR', 'ConstantLR', 'ExponentialLR', 'MultiStepLR', 'OneCycleLR'],
                     help='learning rate name')
 parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                     metavar='LR', help='initial learning rate', dest='lr')

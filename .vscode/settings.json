@@ -1,3 +1,4 @@
 {
-    "python.pythonPath": "/home/lkk/Developer/venv38/bin/python"
+    "python.pythonPath": "/home/lkk/Developer/venv38/bin/python",
+    "cmake.configureOnOpen": false
 }
